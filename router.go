@@ -24,3 +24,6 @@ type (
 
 	Params []Param
 )
+
+type Router struct {
+}
