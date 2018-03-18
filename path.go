@@ -3,6 +3,8 @@
  */
 package goil
 
+import "path"
+
 /**
 预处理url：
 	1. 处理后的URL必须以 `/` 开头
@@ -73,7 +75,7 @@ func CleanPath(p string) string {
 			r += 2
 
 			//匹配 ..
-		case p[r] == '.' && p[r+1] == '.' && ( r+2 == n || p[r+2] == '/'):
+		case p[r] == '.' && p[r+1] == '.' && (r+2 == n || p[r+2] == '/'):
 			//buf[0] == '/'
 			if w > 1 {
 				w--
@@ -122,7 +124,7 @@ func CleanPath(p string) string {
 func appendLazy(buf *[]byte, p string, w int, b byte) {
 	//如果buf未初始化
 	if *buf == nil {
-		if p[w] == b {	//如果可以使用原path，则无需创建buf
+		if p[w] == b { //如果可以使用原path，则无需创建buf
 			return
 		}
 		//初始化buf
@@ -131,4 +133,16 @@ func appendLazy(buf *[]byte, p string, w int, b byte) {
 	}
 	//拷贝字节b到buf
 	(*buf)[w] = b
+}
+
+func joinPath(basePath, relativePath string) string {
+	if relativePath == "" || relativePath == "/" {
+		return basePath
+	}
+	path := path.Join(basePath, relativePath)
+	if relativePath[len(relativePath)-1] == '/' && path[len(path)-1] != '/' {
+		return path + "/"
+	}
+	return path
+
 }

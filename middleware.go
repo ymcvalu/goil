@@ -13,7 +13,7 @@ node.next=Middleware{
 		handler,	//将路由处理函数包装成middleware链到 tail of middleware chain
 		nil
 	}
- */
+*/
 package goil
 
 type (
@@ -43,9 +43,11 @@ func appendChain(head *Middleware, middles ...*Middleware) *Middleware {
 	if n == 0 {
 		return head
 	}
-	//head is nil,middles is the chain
+
+	chain := makeChain(middles...)
+
 	if head == nil {
-		return middles[0]
+		return chain
 	}
 
 	//find the tail of the chain
@@ -54,26 +56,50 @@ func appendChain(head *Middleware, middles ...*Middleware) *Middleware {
 		tail = tail.next
 	}
 
-	for _, m := range middles {
-		head.next = m
-		tail = head.next
-	}
+	tail.next = chain
+
 	return head
 }
 
+func combineChain(head *Middleware, handlers ...HandlerFunc) *Middleware {
+	if len(handlers) == 0 {
+		return head
+	}
+	chain := makeChainForHandlers(handlers...)
+	if head == nil {
+		return chain
+	}
+	tail := head
+	for tail.next != nil {
+		tail = tail.next
+	}
+	tail.next = chain
+	return head
+}
 
-func makeChain(middlewares ... *Middleware) (head *Middleware) {
+func makeChain(middlewares ...*Middleware) (head *Middleware) {
 	if len(middlewares) == 0 {
-		head = nil
-	} else if len(middlewares) == 1 {
-		head = middlewares[0]
-	} else {
-		head = middlewares[0]
-		pre := head
-		for i := 1; i < len(middlewares); i++ {
-			pre.next = middlewares[i]
-			pre = pre.next
-		}
+		return
+	}
+	head = middlewares[0]
+	pre := head
+	for i := 1; i < len(middlewares); i++ {
+		pre.next = middlewares[i]
+		pre = pre.next
+
+	}
+	return
+}
+
+func makeChainForHandlers(handles ...HandlerFunc) (head *Middleware) {
+	if len(handles) == 0 {
+		return
+	}
+	head = wrapHandler(handles[0])
+	pre := head
+	for i := 1; i < len(handles); i++ {
+		pre.next = wrapHandler(handles[i])
+		pre = pre.next
 	}
 	return
 }

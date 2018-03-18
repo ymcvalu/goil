@@ -27,9 +27,9 @@ const (
 const (
 	_ uint8 = 1 << iota
 	/**
-		严格冲突检查：如果静态路由和参数路由(:或者*)冲突，则报错，默认关闭
-		非严格冲突检查：优先级静态路由>:>*
-	 */
+	严格冲突检查：如果静态路由和参数路由(:或者*)冲突，则报错，默认关闭
+	非严格冲突检查：优先级静态路由>:>*
+	*/
 	_STRICT_CONFILCT_MASK
 	_DEBUG
 )
@@ -71,23 +71,22 @@ type (
 		children     *node       //子节点
 		next         *node       //友邻兄弟节点
 		handlerChain *Middleware //作用于该节点的中间件
-		handler      HandlerFunc //处理函数
 	}
 )
 
 /**
-	插入路由节点
-	参数：
-	root：路由树根节点
-	url： 目标url
-	handler：对应的处理函数
-	chain：注册节点时传入的中间件
- */
-func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *node {
+插入路由节点
+参数：
+root：路由树根节点
+url： 目标url
+handler：对应的处理函数
+chain：注册节点时传入的中间件
+*/
+func (root *node) addNode(url string, chain *Middleware) *node {
 	if url == "" || url[0] != '/' {
 		panic("url must start with '/'")
 	}
-	if handler == nil {
+	if chain == nil {
 		panic("fatal error:handler can't be nil")
 	}
 	//tree root can't be nil
@@ -121,14 +120,13 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 					pattern:      pPattern[preIdx:],
 					children:     parent.children,
 					handlerChain: parent.handlerChain,
-					handler:      parent.handler,
 				}
 				for ch := child.children; ch != nil; ch = ch.next {
 					if child.maxParams < ch.maxParams {
 						child.maxParams = ch.maxParams
 					}
 				}
-				parent.handler = nil
+
 				parent.handlerChain = nil
 				parent.pattern = pPattern[:preIdx]
 				parent.children = child
@@ -136,11 +134,11 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 			}
 			//刚好是前缀
 			if preIdx == len(cPattern) {
-				if parent.handler != nil {
+				if parent.handlerChain != nil {
 
 					panic("a handle is already registered for path '" + url + "'")
 				}
-				parent.handler = handler
+
 				parent.handlerChain = chain
 				return parent
 			}
@@ -159,13 +157,12 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 				if cc != '/' {
 					if isStrictConflictChecked() {
 						//there has been wild node
-						if (cp == ':' || cp == '*') {
+						if cp == ':' || cp == '*' {
 							if cp == cc { //判断是否相同wild节点，如果是,continue
 								i := len(child.pattern)
 								//长度相同，则需要pattern一致，handler为nil
 								if len(cPattern) == i && cPattern == child.pattern {
-									if child.handler == nil {
-										child.handler = handler
+									if child.handlerChain == nil {
 										child.handlerChain = chain
 										child.priority++
 										return child
@@ -177,7 +174,7 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 									if parent.maxParams < paramNum {
 										parent.maxParams = paramNum
 									}
-									paramNum --
+									paramNum--
 									continue loop
 								}
 							}
@@ -193,8 +190,7 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 						if (cp == ':' || cp == '*') && cp == cc {
 							i := len(child.pattern)
 							if len(cPattern) == i && cPattern == child.pattern {
-								if child.handler == nil {
-									child.handler = handler
+								if child.handlerChain == nil {
 									child.handlerChain = chain
 									child.priority++
 									return child
@@ -224,12 +220,11 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 				}
 			}
 			//已经没有公共前缀了，添加新的子节点
-			return parent.appendChild(paramNum, cPattern, url, handler, chain)
+			return parent.appendChild(paramNum, cPattern, url, chain)
 
 		}
 	} else { //insert root "/"
-		if root.handler == nil {
-			root.handler = handler
+		if root.handlerChain == nil {
 			root.handlerChain = chain
 			root.typ = static
 			return root
@@ -240,7 +235,7 @@ func (root *node) addNode(url string, handler HandlerFunc, chain *Middleware) *n
 	panic("fatal error when add route node '" + url + "'")
 }
 
-func (n *node) appendChild(numParams uint8, pattern, url string, handler HandlerFunc, chain *Middleware) (child *node) {
+func (n *node) appendChild(numParams uint8, pattern, url string, chain *Middleware) (child *node) {
 	pl := len(pattern)
 	if pl == 0 {
 		return nil
@@ -311,7 +306,6 @@ func (n *node) appendChild(numParams uint8, pattern, url string, handler Handler
 				buf = buf[0:0:pl]
 			} else {
 				child.handlerChain = chain
-				child.handler = handler
 				return
 			}
 
@@ -325,7 +319,6 @@ func (n *node) appendChild(numParams uint8, pattern, url string, handler Handler
 		child = &node{
 			pattern:      string(buf),
 			maxParams:    numParams,
-			handler:      handler,
 			handlerChain: chain,
 			next:         parent.children,
 			typ:          static,
@@ -363,8 +356,8 @@ func getPrefix(p string, c string) int {
 func getParamNum(url string) uint8 {
 	paramNum := 0
 	for i, l := 0, len(url); i < l; i++ {
-		if url[i] == ':' || url [i] == '*' {
-			paramNum ++
+		if url[i] == ':' || url[i] == '*' {
+			paramNum++
 			i++
 			for i < len(url) && url[i] != '/' {
 				i++
@@ -512,7 +505,7 @@ loop:
 	}
 
 final:
-//catchAllNode is not nil,use it
+	//catchAllNode is not nil,use it
 	if catchAllNode != nil {
 		chain = catchAllNode.getHandlerChain()
 		if params == nil {
@@ -531,9 +524,9 @@ final:
 	chain = nil
 	params = nil
 	//one '/' extra,suggest to redirect
-	if (idx == pl-1 && path[idx] == '/' && preNode.handler != nil) || (path[pl-1] == '/' && path[idx:pl-1] == curNode.pattern && curNode.handler != nil) {
+	if (idx == pl-1 && path[idx] == '/' && preNode.handlerChain != nil) || (path[pl-1] == '/' && path[idx:pl-1] == curNode.pattern && curNode.handlerChain != nil) {
 		tsr = true
-	} else if path[idx:]+"/" == curNode.pattern && curNode.handler != nil { //less one '/',suggest to redirect
+	} else if path[idx:]+"/" == curNode.pattern && curNode.handlerChain != nil { //less one '/',suggest to redirect
 		tsr = true
 	}
 	return
@@ -545,7 +538,7 @@ func (root *node) adjustPriority() {
 
 /**
 打印Tree，深度优先遍历
- */
+*/
 func printTree(n *node, level int, pre string) {
 	i := level
 	prefix := ""
@@ -553,21 +546,12 @@ func printTree(n *node, level int, pre string) {
 		prefix += pre
 		i--
 	}
-	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d  priority:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.priority, n.handler != nil)
+	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d  priority:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.priority, n.handlerChain != nil)
 	for child := n.children; child != nil; child = child.next {
 		printTree(child, level+1, pre)
 	}
 }
 
 func (n *node) getHandlerChain() *Middleware {
-	if n.handler == nil {
-		return nil
-	}
-	chain := n.handlerChain
-	if chain == nil {
-		chain = wrapHandler(n.handler)
-	} else {
-		chain.next = wrapHandler(n.handler)
-	}
-	return chain
+	return n.handlerChain
 }
