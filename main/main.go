@@ -13,4 +13,5 @@ func main() {
 	}
 	url := path.Join(paths...)
 	fmt.Println(url)
+
 }

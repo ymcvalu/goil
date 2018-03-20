@@ -49,6 +49,14 @@ type IRouter interface {
 	Group(path string, handlers ...HandlerFunc) IRouter
 	Use(handlers ...HandlerFunc) IRouter
 	ADD(method, path string, handler ...HandlerFunc) IRouter
+	GET(path string, handlers ...HandlerFunc)
+	POST(path string, handlers ...HandlerFunc)
+	PUT(path string, handlers ...HandlerFunc)
+	DELETE(path string, handlers ...HandlerFunc)
+	OPTIONS(path string, handlers ...HandlerFunc)
+	PATCH(path string, handlers ...HandlerFunc)
+	CONNECT(path string, handlers ...HandlerFunc)
+	TRACE(path string, handlers ...HandlerFunc)
 }
 
 type methodTree struct {
@@ -60,35 +68,39 @@ func (t *methodTree) isNil() bool {
 }
 
 type router struct {
-	middlewares *Middleware
-	trees       []methodTree
+	group
+	trees []methodTree
 }
 
-func NewRouter() *router {
-	return &router{
+type group struct {
+	middlewares *Middleware
+	router      *router
+	base        string
+}
+
+func NewRouter() (r *router) {
+	r = &router{
 		trees: make([]methodTree, len(methods)),
 	}
+	r.group.router = r
+	return
 }
 
-func (r *router) Group(path string, handlers ...HandlerFunc) IRouter {
+func (g *group) Group(path string, handlers ...HandlerFunc) IRouter {
 	return &group{
-		base:        path,
-		middlewares: combineChain(r.middlewares, handlers...),
-		router:      r,
+		middlewares: combineChain(g.middlewares, handlers...),
+		router:      g.router,
+		base:        joinPath(g.base, path),
 	}
 }
 
-func (r *router) Use(handlers ...HandlerFunc) IRouter {
-	r.middlewares = combineChain(r.middlewares, handlers...)
-	return r
+func (g *group) Use(handlers ...HandlerFunc) IRouter {
+	g.middlewares = combineChain(g.middlewares, handlers...)
+	return g
 }
 
-func (r *router) ADD(method string, path string, handlers ...HandlerFunc) IRouter {
+func (r *router) add(method string, path string, chain *Middleware) {
 
-	return r.add(method, path, combineChain(r.middlewares, handlers...))
-}
-
-func (r *router) add(method string, path string, chain *Middleware) IRouter {
 	if path[0] != '/' {
 		panic(fmt.Sprintf("path must start with '/'"))
 	}
@@ -109,33 +121,84 @@ func (r *router) add(method string, path string, chain *Middleware) IRouter {
 	}
 
 	r.trees[idx].addNode(path, chain)
-	return r
 }
 
-type group struct {
-	middlewares *Middleware
-	router      *router
-	base        string
-}
-
-func (g *group) Group(path string, handlers ...HandlerFunc) IRouter {
-	return &group{
-		middlewares: combineChain(g.middlewares, handlers...),
-		router:      g.router,
-		base:        joinPath(g.base, path),
-	}
-}
-
-func (g *group) Use(handlers ...HandlerFunc) IRouter {
-	g.middlewares = combineChain(g.middlewares, handlers...)
-	return g
-}
-
-func (g *group) ADD(method, path string, handlers ...HandlerFunc) IRouter {
+func (g *group) ADD(method string, path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-
 	g.router.add(method, joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) GET(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("GET", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) POST(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("POST", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) PUT(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("PUT", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) DELETE(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("DELETE", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) HEAD(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("HEAD", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) OPTIONS(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("OPTIONS", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) PATCH(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("PATCH", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) CONNECT(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("CONNECT", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) TRACE(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+	g.router.add("TRACE", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
 	return g
 }

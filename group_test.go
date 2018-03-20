@@ -10,21 +10,14 @@ func TestADD(t *testing.T) {
 		t.Errorf("router")
 		c.Next()
 	})
-	g := route.Group("/v1", func(c *Context) {
-		t.Errorf("group 1")
-		c.Next()
-	})
-	g.Use(func(c *Context) {
-		t.Errorf("group 2")
-		c.Next()
-	})
-	g.ADD("GET", "test", func(c *Context) {
+
+	route.ADD("GET", "/test", func(c *Context) {
 		t.Errorf("node")
 		c.Next()
 	}, func(c *Context) {
 		t.Errorf("test")
 	})
-	chain, _, _ := route.trees[GET].routerMapping("/v1/test")
+	chain, _, _ := route.trees[GET].routerMapping("/test")
 	c := &Context{
 		chain: chain,
 	}
