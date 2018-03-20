@@ -49,14 +49,14 @@ type IRouter interface {
 	Group(path string, handlers ...HandlerFunc) IRouter
 	Use(handlers ...HandlerFunc) IRouter
 	ADD(method, path string, handler ...HandlerFunc) IRouter
-	GET(path string, handlers ...HandlerFunc)
-	POST(path string, handlers ...HandlerFunc)
-	PUT(path string, handlers ...HandlerFunc)
-	DELETE(path string, handlers ...HandlerFunc)
-	OPTIONS(path string, handlers ...HandlerFunc)
-	PATCH(path string, handlers ...HandlerFunc)
-	CONNECT(path string, handlers ...HandlerFunc)
-	TRACE(path string, handlers ...HandlerFunc)
+	GET(path string, handlers ...HandlerFunc) IRouter
+	POST(path string, handlers ...HandlerFunc) IRouter
+	PUT(path string, handlers ...HandlerFunc) IRouter
+	DELETE(path string, handlers ...HandlerFunc) IRouter
+	OPTIONS(path string, handlers ...HandlerFunc) IRouter
+	PATCH(path string, handlers ...HandlerFunc) IRouter
+	CONNECT(path string, handlers ...HandlerFunc) IRouter
+	TRACE(path string, handlers ...HandlerFunc) IRouter
 }
 
 type methodTree struct {
@@ -77,6 +77,10 @@ type group struct {
 	router      *router
 	base        string
 }
+
+//assert *router and *group implements IRouter interface
+var _ IRouter = &router{}
+var _ IRouter = &group{}
 
 func NewRouter() (r *router) {
 	r = &router{
