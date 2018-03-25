@@ -1,5 +1,9 @@
 /**
- *路由操作接口
+ * 路由存储结构
+ * router的add方法实现向methodTree注册路由
+ * IRouter接口定义了路由注册接口
+ * *group实现IRouter接口
+ * router嵌套了group，自动生成*router的桥接方法，因此也实现了IRouter接口
  */
 package goil
 
@@ -57,10 +61,12 @@ type IRouter interface {
 	PATCH(path string, handlers ...HandlerFunc) IRouter
 	CONNECT(path string, handlers ...HandlerFunc) IRouter
 	TRACE(path string, handlers ...HandlerFunc) IRouter
+	ANY(path string, handlers ...HandlerFunc) IRouter
 }
 
 type methodTree struct {
 	*node
+	method string
 }
 
 func (t *methodTree) isNil() bool {
@@ -78,14 +84,28 @@ type group struct {
 	base        string
 }
 
+func (r *router) findTree(method string) (*methodTree, bool) {
+	for i := range r.trees {
+		if r.trees[i].method == method {
+			return &r.trees[i], true
+		}
+	}
+	return nil, false
+}
+
 //assert *router and *group implements IRouter interface
 var _ IRouter = &router{}
 var _ IRouter = &group{}
 
-func NewRouter() (r *router) {
+func newRouter() (r *router) {
 	r = &router{
 		trees: make([]methodTree, len(methods)),
 	}
+
+	for k, v := range methods {
+		r.trees[v].method = k
+	}
+
 	r.group.router = r
 	return
 }
@@ -113,18 +133,20 @@ func (r *router) add(method string, path string, chain *Middleware) {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
 
-	idx, exists := methods[method]
+	tree, exists := r.findTree(method)
+
 	if !exists {
 		panic(fmt.Sprintf("unsupported method:%s", method))
 	}
-	if r.trees[idx].isNil() {
-		r.trees[idx].node = &node{
+
+	if tree.isNil() {
+		tree.node = &node{
 			pattern: "/",
 			typ:     static,
 		}
 	}
 
-	r.trees[idx].addNode(path, chain)
+	tree.addNode(path, chain)
 }
 
 func (g *group) ADD(method string, path string, handlers ...HandlerFunc) IRouter {
@@ -204,5 +226,17 @@ func (g *group) TRACE(path string, handlers ...HandlerFunc) IRouter {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
 	g.router.add("TRACE", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	return g
+}
+
+func (g *group) ANY(path string, handlers ...HandlerFunc) IRouter {
+	if len(handlers) == 0 {
+		panic(fmt.Sprintf("handler nil:%s", path))
+	}
+
+	for k := range methods {
+		g.router.add(k, joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	}
+
 	return g
 }

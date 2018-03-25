@@ -1,0 +1,5 @@
+package goil
+
+func main() {
+
+}

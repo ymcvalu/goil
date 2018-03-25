@@ -5,7 +5,7 @@ import (
 )
 
 func TestADD(t *testing.T) {
-	route := NewRouter()
+	route := newRouter()
 	route.Use(func(c *Context) {
 		t.Errorf("router")
 		c.Next()
