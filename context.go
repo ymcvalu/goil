@@ -1,11 +1,15 @@
 package goil
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+)
 
 type (
 	Context struct {
-		chain *Middleware
-		err   error
+		request *http.ReadRequest
+		chain   *Middleware
+		err     error
 	}
 )
 
