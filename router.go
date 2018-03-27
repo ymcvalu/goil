@@ -93,6 +93,15 @@ func (r *router) findTree(method string) (*methodTree, bool) {
 	return nil, false
 }
 
+func (r *router) route(method, path string) (chain *Middleware, params Params, tsr bool) {
+	tree, exist := r.findTree(method)
+	if !exist {
+		chain = nil
+		return
+	}
+	return tree.routerMapping(path)
+}
+
 //assert *router and *group implements IRouter interface
 var _ IRouter = &router{}
 var _ IRouter = &group{}
@@ -103,7 +112,7 @@ func newRouter() (r *router) {
 	}
 
 	for k, v := range methods {
-		r.trees[v].method = k
+		r.trees[v-1].method = k
 	}
 
 	r.group.router = r
@@ -124,8 +133,7 @@ func (g *group) Use(handlers ...HandlerFunc) IRouter {
 }
 
 func (r *router) add(method string, path string, chain *Middleware) {
-
-	if path[0] != '/' {
+	if len(path) == 0 || path[0] != '/' {
 		panic(fmt.Sprintf("path must start with '/'"))
 	}
 

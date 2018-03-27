@@ -7,8 +7,10 @@ import (
 
 type (
 	Context struct {
-		request *http.ReadRequest
+		request *http.Request
+		writer  *responseWriter
 		chain   *Middleware
+		params  Params
 		err     error
 	}
 )

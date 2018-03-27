@@ -136,7 +136,7 @@ func appendLazy(buf *[]byte, p string, w int, b byte) {
 }
 
 func joinPath(basePath, relativePath string) string {
-	if relativePath == "" || relativePath == "/" {
+	if relativePath == "" {
 		return basePath
 	}
 	path := path.Join(basePath, relativePath)
