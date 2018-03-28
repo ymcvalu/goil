@@ -5,15 +5,13 @@ import (
 	"net/http"
 )
 
-type (
-	Context struct {
-		request *http.Request
-		writer  *responseWriter
-		chain   *Middleware
-		params  Params
-		err     error
-	}
-)
+type Context struct {
+	request  *http.Request
+	response Response
+	chain    *Middleware
+	params   Params
+	err      error
+}
 
 //执行 middleware chain 的下一个节点
 //仅用于 middleware 中执行
@@ -55,4 +53,12 @@ func (ctx *Context) NextCall() (handler HandlerFunc) {
 	handler = chain.handler
 	ctx.chain = chain.next
 	return
+}
+
+func (c *Context) Write(bytes []byte) (int, error) {
+	return c.response.Write(bytes)
+}
+
+func (c *Context) String(str string) (int, error) {
+	return c.response.Write([]byte(str))
 }

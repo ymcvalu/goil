@@ -32,7 +32,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if chain != nil {
 		ctx := app.pool.Get().(*Context)
 		ctx.chain = chain
-
+		ctx.response = newResponse(w)
 		ctx.request = r
 		ctx.params = params
 		ctx.Next()
