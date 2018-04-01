@@ -7,15 +7,21 @@ import (
 
 type App struct {
 	router
-	pool sync.Pool
+	contextPool sync.Pool
+	respPool    sync.Pool
 }
 
 func New() *App {
 	return &App{
 		router: *newRouter(),
-		pool: sync.Pool{
+		contextPool: sync.Pool{
 			New: func() interface{} {
 				return &Context{}
+			},
+		},
+		respPool: sync.Pool{
+			New: func() interface{} {
+				return newResponse()
 			},
 		},
 	}
@@ -30,14 +36,21 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	chain, params, tsr := app.route(method, path)
 	//
 	if chain != nil {
-		ctx := app.pool.Get().(*Context)
+		//init the context
+		ctx := app.contextPool.Get().(*Context)
 		ctx.chain = chain
-		ctx.response = newResponse(w)
-		ctx.request = r
+		ctx.Response = app.respPool.Get().(*response)
+		ctx.Response.reset(w)
+		ctx.Request = r
 		ctx.params = params
 		ctx.Next()
-		app.pool.Put(ctx)
-
+		//detach
+		ctx.Request = nil
+		resp := ctx.Response
+		ctx.Response = nil
+		app.contextPool.Put(ctx)
+		app.respPool.Put(resp.clear())
+		resp = nil
 		return
 	}
 	//

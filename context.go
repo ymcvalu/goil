@@ -1,17 +1,28 @@
 package goil
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 )
 
 type Context struct {
-	request  *http.Request
-	response Response
+	Request  *http.Request
+	Response Response
 	chain    *Middleware
 	params   Params
 	err      error
 }
+
+const (
+	CONTENT_TYPE = "Content-Type"
+)
+
+const (
+	MIME_TEXT = "text/plain;charset=utf-8"
+	MIME_JSON = "application/json;charset=utf-8"
+)
 
 //执行 middleware chain 的下一个节点
 //仅用于 middleware 中执行
@@ -55,10 +66,74 @@ func (ctx *Context) NextCall() (handler HandlerFunc) {
 	return
 }
 
-func (c *Context) Write(bytes []byte) (int, error) {
-	return c.response.Write(bytes)
+func (c *Context) String(str string) {
+	c.Body(MIME_TEXT, []byte(str))
 }
 
-func (c *Context) String(str string) (int, error) {
-	return c.response.Write([]byte(str))
+func (c *Context) JSON(_json interface{}) {
+	byts, err := json.Marshal(_json)
+	if err != nil {
+		panic(err)
+	}
+	c.Body(MIME_JSON, byts)
+}
+
+func (c *Context) IndentJSON(_json interface{}) {
+	byts, err := json.MarshalIndent(_json, "", " ")
+	if err != nil {
+		panic(err)
+	}
+	c.Body(MIME_JSON, byts)
+}
+
+//TODO:the prefix can config
+const prefix = "for(;;)"
+
+func (c *Context) SecuryJSON(_json interface{}) {
+	byts, err := json.Marshal(_json)
+	if err != nil {
+		panic(err)
+	}
+	l := len(prefix) + len(byts)
+	buf := make([]byte, l)
+	copy(buf[:len(prefix)], []byte(prefix))
+	copy(buf[len(prefix):], byts)
+	c.Body(MIME_JSON, buf)
+}
+
+func (c *Context) Status(code int) {
+	c.Response.WriteHeader(code)
+}
+
+func (c *Context) Body(contentType string, body []byte) {
+	c.Response.SetHeader(CONTENT_TYPE, contentType)
+	if _, err := c.Response.Write(body); err != nil {
+		panic(err)
+	}
+}
+
+//if the r implements io.Closer and the autoClose is true,then the r will be closed
+func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
+	if autoClose {
+		if closer, ok := r.(io.Closer); ok {
+			defer closer.Close()
+		}
+	}
+	c.Response.SetHeader(CONTENT_TYPE, contentType)
+	buf := make([]byte, 512)
+	n := 0
+	var err error
+	for {
+		n, err = r.Read(buf)
+		if err != nil && n > 0 {
+			if _, e := c.Response.Write(buf[:n]); err != nil {
+				panic(e)
+			}
+		} else if err != nil {
+			panic(err)
+		} else {
+			break
+		}
+	}
+
 }
