@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
+	"reflect"
 )
 
 type Context struct {
@@ -20,8 +22,8 @@ const (
 )
 
 const (
-	MIME_TEXT = "text/plain;charset=utf-8"
-	MIME_JSON = "application/json;charset=utf-8"
+	MIME_TEXT = "text/plain"
+	MIME_JSON = "application/json"
 )
 
 //执行 middleware chain 的下一个节点
@@ -136,4 +138,26 @@ func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 		}
 	}
 
+}
+
+func (c *Context) Bind(iface interface{}) {
+	val := reflect.ValueOf(iface)
+	if val.Type().Kind() != reflect.Ptr {
+		panic("the param of Bind must be a pointer")
+	}
+	switch c.GetHeader().Get(CONTENT_TYPE) {
+	case MIME_JSON:
+		_json, err := ioutil.ReadAll(c.Request.Body)
+		if err != nil {
+			panic(err)
+		}
+		json.Unmarshal(_json, iface)
+	default:
+	}
+
+	return
+}
+
+func (c *Context) GetHeader() http.Header {
+	return c.Request.Header
 }

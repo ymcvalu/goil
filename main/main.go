@@ -1,6 +1,13 @@
 package main
 
-import "goil"
+import (
+	"goil"
+)
+
+type Params struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
 
 func main() {
 	app := goil.New()
@@ -24,6 +31,11 @@ func main() {
 			"name": "Jim",
 			"age":  "19",
 		})
+	})
+	app.POST("/json/echo", func(c *goil.Context) {
+		var params = Params{}
+		c.Bind(&params)
+		c.JSON(params)
 	})
 	app.Run(":8081")
 
