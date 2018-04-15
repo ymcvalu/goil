@@ -1,8 +1,6 @@
 package main
 
-import (
-	"goil"
-)
+import "goil"
 
 type Params struct {
 	Name string `json:"name"`
@@ -37,6 +35,10 @@ func main() {
 		c.Bind(&params)
 		c.JSON(params)
 	})
+	app.GET("/param/:name/:age", func(c *goil.Context) {
+		if val, exist := c.Param("age"); exist {
+			c.String(val)
+		}
+	})
 	app.Run(":8081")
-
 }
