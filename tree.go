@@ -399,21 +399,20 @@ loop:
 		switch curNode.typ {
 		case param:
 			if params == nil {
-				params = make(Params, 0, curNode.maxParams)
+				params = make(Params, curNode.maxParams)
 			}
-			param := Param{
-				Key: curNode.pattern[1:],
-			}
+
+			paramKey := curNode.pattern[1:]
+
 			//匿名参数，添加默认参数名
-			if param.Key == "" {
-				param.Key = "param" + strconv.Itoa(len(params))
+			if paramKey == "" {
+				paramKey = "param" + strconv.Itoa(len(params))
 			}
 			i := idx
 			for idx < pl && path[idx] != '/' {
 				idx++
 			}
-			param.Value = path[i:idx]
-			params = append(params, param)
+			params[paramKey] = path[i:idx]
 
 			if idx >= pl {
 				chain = curNode.getHandlerChain()
@@ -509,16 +508,14 @@ final:
 	if catchAllNode != nil {
 		chain = catchAllNode.getHandlerChain()
 		if params == nil {
-			params = make(Params, 0, catchAllNode.maxParams)
+			params = make(Params, catchAllNode.maxParams)
 		}
-		param := Param{
-			Key: catchAllNode.pattern[1:],
+		paramKey := catchAllNode.pattern[1:]
+
+		if paramKey == "" {
+			paramKey = "param" + strconv.Itoa(len(params))
 		}
-		param.Value = path[idx:]
-		if param.Key == "" {
-			param.Key = "param" + strconv.Itoa(len(params))
-		}
-		params = append(params, param)
+		params[paramKey] = path[idx:]
 		return
 	}
 	chain = nil

@@ -158,6 +158,11 @@ func (c *Context) Bind(iface interface{}) {
 	return
 }
 
+func (c *Context) Param(key string) (value string, exist bool) {
+	value, exist = c.params[key]
+	return
+}
+
 func (c *Context) GetHeader() http.Header {
 	return c.Request.Header
 }

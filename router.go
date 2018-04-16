@@ -28,12 +28,7 @@ const (
 )
 
 type (
-	Param struct {
-		Key   string
-		Value string
-	}
-
-	Params []Param
+	Params map[string]string
 )
 
 //map method to index
