@@ -13,19 +13,26 @@ type Binding interface {
 
 type Validator func(value interface{}, params []string) error
 
-type Convert func(value string) (interface{}, error)
+var validateFunc = map[string]Validator{
+	"required": func(value interface{}, params []string) error {
+
+		return nil
+	},
+}
+
+type Convert func(value string, dTyp reflect.Type) (interface{}, error)
 
 var convertFunc = map[string]Convert{
-	"_a2i": func(value string) (interface{}, error) {
+	"_a2i": func(value string, dType reflect.Type) (interface{}, error) {
 		return strconv.ParseInt(value, 10, 64)
 	},
-	"_a2b": func(value string) (interface{}, error) {
+	"_a2b": func(value string, dType reflect.Type) (interface{}, error) {
 		return strconv.ParseBool(value)
 	},
-	"_a2u": func(value string) (interface{}, error) {
+	"_a2u": func(value string, dType reflect.Type) (interface{}, error) {
 		return strconv.ParseUint(value, 10, 64)
 	},
-	"_a2f": func(value string) (interface{}, error) {
+	"_a2f": func(value string, dType reflect.Type) (interface{}, error) {
 		return strconv.ParseFloat(value, 64)
 	},
 }
@@ -77,7 +84,7 @@ func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
 	tag := fTyp.Tag
 	conv := tag.Get("convert")
 	if convFunc, exists := convertFunc[conv]; exists {
-		val, err := convFunc(src)
+		val, err := convFunc(src, dest.Type())
 		if err != nil {
 			return err
 		}
@@ -89,7 +96,6 @@ func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
 	switch dest.Type().Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 		conv = "_a2i"
-
 	case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		conv = "_a2u"
 	case reflect.Bool:
@@ -99,7 +105,7 @@ func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
 	default:
 		return fmt.Errorf("unsupport type for binding params %s to %s", src, dest)
 	}
-	val, err := convertFunc[conv](src)
+	val, err := convertFunc[conv](src, dest.Type())
 	if err != nil {
 		return fmt.Errorf("when binding params %v to %v:%s", src, dest, err)
 	}
