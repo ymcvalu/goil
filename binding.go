@@ -3,6 +3,8 @@ package goil
 import (
 	"errors"
 	"fmt"
+	"mime"
+	"net/http"
 	"reflect"
 	"strconv"
 )
@@ -11,13 +13,23 @@ type Binding interface {
 	Bind(c *Context, iface interface{}) error
 }
 
-type Validator func(value interface{}, params []string) error
+type Validator func(value reflect.Value, fTyp reflect.StructField, params []string) error
 
 var validateFunc = map[string]Validator{
-	"required": func(value interface{}, params []string) error {
-
+	"required": func(value reflect.Value, fTyp reflect.StructField, params []string) error {
+		if !value.IsValid() {
+			return errors.New(fmt.Sprintf("%s.%s is empty.", fTyp.PkgPath, fTyp.Name))
+		}
 		return nil
 	},
+}
+
+func RegisetrValidator(name string, validator Validator) bool {
+	if _, conflict := validateFunc[name]; conflict {
+		return false
+	}
+	validateFunc[name] = validator
+	return true
 }
 
 type Convert func(value string, dTyp reflect.Type) (interface{}, error)
@@ -77,6 +89,30 @@ func pathParamsBinding(ctx Context, iface interface{}) (err error) {
 		}
 		//case reflect.Map:
 	}
+	return
+}
+
+func urlParamsBinding(ctx Context, iface interface{}) (err error) {
+	req := ctx.Request
+	err = req.ParseForm()
+	if err != nil {
+		return
+	}
+	contentType := req.Header.Get("Content-Type")
+	if contentType != "" {
+		d, _, err := mime.ParseMediaType(contentType)
+		if d == "multipart/form-data" || err == nil {
+			err = req.ParseMultipartForm(0)
+			if err != nil && err != http.ErrNotMultipart {
+				return err
+			}
+		}
+	}
+
+	//1.parse post
+
+	//2.parse file
+
 	return
 }
 
