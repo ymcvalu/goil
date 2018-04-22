@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"reflect"
 )
 
 type Context struct {
@@ -19,11 +18,6 @@ type Context struct {
 
 const (
 	CONTENT_TYPE = "Content-Type"
-)
-
-const (
-	MIME_TEXT = "text/plain"
-	MIME_JSON = "application/json"
 )
 
 //执行 middleware chain 的下一个节点
@@ -140,22 +134,61 @@ func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 
 }
 
-func (c *Context) Bind(iface interface{}) {
-	val := reflect.ValueOf(iface)
-	if val.Type().Kind() != reflect.Ptr {
-		panic("the param of Bind must be a pointer")
+func (c *Context) Bind(iface interface{}) error {
+	err := bind(c, iface)
+	if err != nil {
+		return err
 	}
-	switch c.GetHeader().Get(CONTENT_TYPE) {
-	case MIME_JSON:
-		_json, err := ioutil.ReadAll(c.Request.Body)
-		if err != nil {
-			panic(err)
-		}
-		json.Unmarshal(_json, iface)
-	default:
-	}
+	legal, err := validate(iface)
 
-	return
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return errors.New("params validate failed.")
+	}
+	return nil
+}
+
+func (c *Context) BindParams(iface interface{}) error {
+	err := bindPathParams(c, iface)
+	if err != nil {
+		return err
+	}
+	legal, err := validate(iface)
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return errors.New("params validate failed.")
+	}
+	return nil
+}
+
+func (c *Context) Bind2(iface interface{}) error {
+	err := bindPathParams(c, iface)
+	if err != nil {
+		return err
+	}
+	legal, err := validate(iface)
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return errors.New("params validate failed.")
+	}
+	err = bind(c, iface)
+	if err != nil {
+		return err
+	}
+	legal, err = validate(iface)
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return errors.New("params validate failed.")
+	}
+	return nil
 }
 
 func (c *Context) Param(key string) (value string, exist bool) {
@@ -163,6 +196,34 @@ func (c *Context) Param(key string) (value string, exist bool) {
 	return
 }
 
+func (c *Context) DefParam(key string, def string) string {
+	if value, exist := c.params[key]; exist {
+		return value
+	}
+	return def
+}
+
+func (c *Context) Query(key string) (string, bool) {
+	vals, exist := c.Request.Form[key]
+	return vals[0], exist
+}
+
+func (c *Context) DefQuery(key string, def string) string {
+	if vals, exist := c.Request.PostForm[key]; exist {
+		return vals[0]
+	}
+	return def
+}
+
 func (c *Context) GetHeader() http.Header {
 	return c.Request.Header
+}
+
+func (c *Context) BodyReader() io.Reader {
+	//server will close the body auto
+	return c.Request.Body
+}
+
+func (c *Context) BodyData() ([]byte, error) {
+	return ioutil.ReadAll(c.Request.Body)
 }

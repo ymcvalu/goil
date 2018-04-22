@@ -5,8 +5,16 @@ import (
 )
 
 func isPtr(iface interface{}) bool {
-	k := reflect.TypeOf(iface).Kind()
-	return k == reflect.Ptr
+	switch elem := iface.(type) {
+	case reflect.Value:
+		return elem.Type().Kind() == reflect.Ptr
+	case reflect.Type:
+		return elem.Kind() == reflect.Ptr
+	default:
+		k := reflect.TypeOf(elem).Kind()
+		return k == reflect.Ptr
+	}
+
 }
 
 func typeOf(iface interface{}) reflect.Type {
