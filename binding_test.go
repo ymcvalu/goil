@@ -19,7 +19,7 @@ func TestBinding(t *testing.T) {
 		},
 	}
 	test := &Test{}
-	bindPathParams(&c, test)
+	bindPathParams(c.params, test)
 	t.Errorf("%d %f %s", *test.I, *test.F, test.S)
 
 }

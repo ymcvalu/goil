@@ -74,7 +74,7 @@ type router struct {
 }
 
 type group struct {
-	middlewares *Middleware
+	middlewares HandlerChain
 	router      *router
 	base        string
 }
@@ -88,7 +88,7 @@ func (r *router) findTree(method string) (*methodTree, bool) {
 	return nil, false
 }
 
-func (r *router) route(method, path string) (chain *Middleware, params Params, tsr bool) {
+func (r *router) route(method, path string) (chain HandlerChain, params Params, tsr bool) {
 	tree, exist := r.findTree(method)
 	if !exist {
 		chain = nil
@@ -127,7 +127,7 @@ func (g *group) Use(handlers ...HandlerFunc) IRouter {
 	return g
 }
 
-func (r *router) add(method string, path string, chain *Middleware) {
+func (r *router) add(method string, path string, chain HandlerChain) {
 	if len(path) == 0 || path[0] != '/' {
 		panic(fmt.Sprintf("path must start with '/'"))
 	}

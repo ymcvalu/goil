@@ -17,7 +17,15 @@ func TestADD(t *testing.T) {
 	}, func(c *Context) {
 		t.Errorf("test")
 	})
-	chain, _, _ := route.trees[GET].routerMapping("/test")
+
+	route.ADD("GET", "/test1", func(c *Context) {
+		t.Errorf("node1")
+		c.Next()
+	}, func(c *Context) {
+		t.Errorf("test1")
+	})
+
+	chain, _, _ := route.route("GET", "/test")
 	c := &Context{
 		chain: chain,
 	}

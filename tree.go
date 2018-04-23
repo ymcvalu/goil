@@ -64,13 +64,13 @@ func isDebug() bool {
 
 type (
 	node struct {
-		typ          uint8       //节点类别
-		priority     uint8       //节点优先级
-		maxParams    uint8       //最大参数个数
-		pattern      string      //节点对应的模式
-		children     *node       //子节点
-		next         *node       //友邻兄弟节点
-		handlerChain *Middleware //作用于该节点的中间件
+		typ          uint8        //节点类别
+		priority     uint8        //节点优先级
+		maxParams    uint8        //最大参数个数
+		pattern      string       //节点对应的模式
+		children     *node        //子节点
+		next         *node        //友邻兄弟节点
+		handlerChain HandlerChain //作用于该节点的中间件
 	}
 )
 
@@ -82,7 +82,7 @@ url： 目标url
 handler：对应的处理函数
 chain：注册节点时传入的中间件
 */
-func (root *node) addNode(url string, chain *Middleware) *node {
+func (root *node) addNode(url string, chain HandlerChain) *node {
 	if url == "" || url[0] != '/' {
 		panic("url must start with '/'")
 	}
@@ -235,7 +235,7 @@ func (root *node) addNode(url string, chain *Middleware) *node {
 	panic("fatal error when add route node '" + url + "'")
 }
 
-func (n *node) appendChild(numParams uint8, pattern, url string, chain *Middleware) (child *node) {
+func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerChain) (child *node) {
 	pl := len(pattern)
 	if pl == 0 {
 		return nil
@@ -370,7 +370,7 @@ func getParamNum(url string) uint8 {
 	return uint8(paramNum)
 }
 
-func (root *node) routerMapping(path string) (chain *Middleware, params Params, tsr bool) {
+func (root *node) routerMapping(path string) (chain HandlerChain, params Params, tsr bool) {
 	idx := 0
 	pl := len(path)
 
@@ -549,6 +549,6 @@ func printTree(n *node, level int, pre string) {
 	}
 }
 
-func (n *node) getHandlerChain() *Middleware {
+func (n *node) getHandlerChain() HandlerChain {
 	return n.handlerChain
 }

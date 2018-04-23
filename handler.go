@@ -4,3 +4,4 @@
 package goil
 
 type HandlerFunc func(*Context)
+type HandlerChain []HandlerFunc

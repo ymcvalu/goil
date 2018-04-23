@@ -10,366 +10,10 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"regexp"
-	"strconv"
 )
 
-type Binding interface {
-	Bind(c *Context, iface interface{}) error
-}
-
-type Validator func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error)
-
-var validateFunc = map[string]Validator{
-	"required": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if !value.IsValid() {
-			return false, nil
-		}
-		return true, nil
-	},
-	"min": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for min validator")
-		}
-		min, err := strconv.ParseFloat(params[0], 64)
-		if err != nil {
-			return false, err
-		}
-
-		switch value.Interface().(type) {
-		case int, int64, int32, int8:
-			goto iv
-		case float32, float64:
-			goto fv
-		case *int, *int64, *int32, *int8:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto iv
-		case *float32, *float64:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto fv
-		}
-		return false, nil
-	iv:
-		{
-			intVal := value.Int()
-			if intVal < int64(min) {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	fv:
-		{
-			fltVal := value.Float()
-			if fltVal < min {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	},
-	"max": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for min validator")
-		}
-		max, err := strconv.ParseFloat(params[0], 64)
-		if err != nil {
-			return false, err
-		}
-
-		switch value.Interface().(type) {
-		case int, int64, int32, int8:
-			goto iv
-		case float32, float64:
-			goto fv
-		case *int, *int64, *int32, *int8:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto iv
-		case *float32, *float64:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto fv
-		}
-		return false, nil
-	iv:
-		{
-			intVal := value.Int()
-			if intVal > int64(max) {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	fv:
-		{
-			fltVal := value.Float()
-			if fltVal > max {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	},
-	"range": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-
-		if params == nil || len(params) < 2 {
-			return false, errors.New("params error for min validator")
-		}
-		min, err := strconv.ParseFloat(params[0], 64)
-		if err != nil {
-			return false, err
-		}
-		max, err := strconv.ParseFloat(params[1], 64)
-		if err != nil {
-			return false, err
-		}
-
-		switch value.Interface().(type) {
-		case int, int64, int32, int8:
-			goto iv
-		case float32, float64:
-			goto fv
-		case *int, *int64, *int32, *int8:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto iv
-		case *float32, *float64:
-			if value.IsNil() {
-				return false, nil
-			}
-			value = value.Elem()
-			goto fv
-		}
-		return false, nil
-	iv:
-		{
-			intVal := value.Int()
-			if intVal > int64(max) || intVal < int64(min) {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	fv:
-		{
-			fltVal := value.Float()
-			if fltVal > max || fltVal < min {
-				return false, nil
-			}
-			return true, nil
-		}
-
-	},
-	"reg": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for reg validator")
-		}
-		reg, err := regexp.Compile(params[0])
-		if err != nil {
-			return false, err
-		}
-		switch val := value.Interface().(type) {
-		case string:
-			return reg.MatchString(val), nil
-		case *string:
-			return reg.MatchString(*val), nil
-		}
-		return false, errors.New("validator reg only support string type")
-	},
-}
-
-var NoValidatorExists = errors.New("no validator exists")
-
-func RegisterValidator(name string, validator Validator) bool {
-	if _, conflict := validateFunc[name]; conflict {
-		return false
-	}
-	validateFunc[name] = validator
-	return true
-}
-
-func validateField(tag string, val reflect.Value, rTyp reflect.StructField) (bool, error) {
-	keys, params, err := parseTag(tag)
-	if err != nil {
-		return false, err
-	}
-	for i := range keys {
-
-		if validator, e := validateFunc[keys[i]]; e {
-			ok, err := validator(val, rTyp.Type, params[i])
-			if !ok || err != nil {
-				return ok, err
-			}
-		} else {
-			return false, NoValidatorExists
-		}
-	}
-	return true, nil
-}
-
-func validate(iface interface{}) (bool, error) {
-	if iface == nil {
-		return false, errors.New("nil pointer for validate")
-	}
-	eTyp := typeOf(iface)
-	eVal := valueOf(iface)
-	if eTyp.Kind() == reflect.Ptr {
-		if eVal.IsNil() {
-			return false, errors.New("nil pointer for validate")
-		}
-		eVal = eVal.Elem()
-		eTyp = eVal.Type()
-	}
-	for i := 0; i < eTyp.NumField(); i++ {
-		fTyp := eTyp.Field(i)
-		tag := fTyp.Tag.Get(VALIDATOR)
-
-		if tag == "" {
-			continue
-		}
-		fVal := eVal.Field(i)
-		legal, err := validateField(tag, fVal, fTyp)
-		if !legal || err != nil {
-			return legal, err
-		}
-	}
-	return true, nil
-}
-
-func parseTag(tag string) ([]string, [][]string, error) {
-	var names = make([]string, 0, 1)
-	var paramses = make([][]string, 0, 1)
-	illegal := false
-	bg, bd := 0, len(tag)
-
-	for {
-		//trim the prefix space
-		for bg < bd && tag[bg] == ' ' {
-			bg++
-		}
-		i := bg
-		for i < bd {
-			if tag[i] == '(' {
-				illegal = true
-				break
-			}
-			if tag[i] == ' ' {
-				break
-			}
-			i++
-		}
-		j := i + 1
-		for j < bd && illegal {
-			if tag[j] == ')' {
-				illegal = false
-				break
-			}
-			j++
-		}
-
-		if illegal {
-			return nil, nil, errors.New("the tag of validator less ')'")
-		}
-		//remove the suffix space
-		nd := i - 1
-		for i > bg && tag[nd] == ' ' {
-			nd--
-		}
-		if nd > bg {
-			names = append(names, tag[bg:nd+1])
-		}
-		i++
-		if i >= j {
-			if nd > bg {
-				paramses = append(paramses, nil)
-			}
-			bg = j + 1
-			if bg >= bd {
-				break
-			}
-			continue
-		}
-
-		params := make([]string, 0, 1)
-		buf := make([]byte, len(tag[i:j]))
-
-		for i < j {
-			//trim the space
-			if tag[i] == ' ' {
-				i++
-				continue
-			}
-			buf[0] = tag[i]
-			i++
-			p := 1
-			for i < j {
-				if tag[i] != ' ' {
-					buf[p] = tag[i]
-					p++
-					i++
-					continue
-				}
-				break
-			}
-			params = append(params, string(buf[:p]))
-		}
-
-		paramses = append(paramses, params)
-		bg = j + 1
-		if bg >= bd {
-			break
-		}
-	}
-	return names, paramses, nil
-}
-
-type Convert func(value string, dTyp reflect.Type) (interface{}, error)
-
-var convertFunc = map[string]Convert{
-	"_a2i": func(value string, dType reflect.Type) (interface{}, error) {
-
-		return strconv.ParseInt(value, 10, 64)
-
-	},
-	"_a2b": func(value string, dType reflect.Type) (interface{}, error) {
-
-		return strconv.ParseBool(value)
-
-	},
-	"_a2u": func(value string, dType reflect.Type) (interface{}, error) {
-
-		return strconv.ParseUint(value, 10, 64)
-
-	},
-	"_a2f": func(value string, dType reflect.Type) (interface{}, error) {
-
-		return strconv.ParseFloat(value, 64)
-
-	},
-}
-
-func RegisterConvert(name string, fun Convert) bool {
-	if _, conflict := convertFunc[name]; conflict {
-		return false
-	}
-	convertFunc[name] = fun
-	return true
-}
-
 func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
+	fmt.Printf("when bind field:%s\n", src)
 	tag := fTyp.Tag
 	conv := tag.Get(CONVERT)
 	if convFunc, exists := convertFunc[conv]; exists {
@@ -438,7 +82,6 @@ func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
 			elemType := dest.Type().Elem()
 			elemVal := reflect.New(elemType)
 			dest.Set(elemVal)
-
 			switch elemType.Kind() {
 			case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 				elemVal.Elem().SetInt(val.(int64))
@@ -555,19 +198,10 @@ const (
 	FILE      = "file"
 )
 
-func bindPathParams(ctx *Context, iface interface{}) (err error) {
-	if ctx.params == nil || len(ctx.params) == 0 {
+func bindPathParams(params Params, iface interface{}) (err error) {
+	if len(params) == 0 {
 		return
 	}
-
-	if iface == nil {
-		return errors.New("param is nil")
-	}
-
-	if !isPtr(iface) {
-		return fmt.Errorf("param isn't a pointer")
-	}
-
 	val := valueOf(iface)
 	typ := val.Type().Elem()
 
@@ -579,38 +213,66 @@ func bindPathParams(ctx *Context, iface interface{}) (err error) {
 		val = val.Elem()
 	}
 
-	switch val.Kind() {
-	case reflect.Struct:
-		for i, n := 0, typ.NumField(); i < n; i++ {
-			fTyp := typ.Field(i)
-			tag := fTyp.Tag
-			pKey := tag.Get(PATH)
-			pVal, exist := ctx.params[pKey]
-			if !exist {
-				continue
-			}
-			fVal := val.Field(i)
-			if !fVal.CanSet() {
-				continue
-			}
-			err = bindField(pVal, fVal, fTyp)
-			if err != nil {
-				return
-			}
+	for i, n := 0, typ.NumField(); i < n; i++ {
+		fTyp := typ.Field(i)
+		tag := fTyp.Tag
+		pKey := tag.Get(PATH)
+		pVal, exist := params[pKey]
+		if !exist {
+			continue
 		}
-		//case reflect.Map:
+		fVal := val.Field(i)
+		if !fVal.CanSet() {
+			continue
+		}
+		err = bindField(pVal, fVal, fTyp)
+		if err != nil {
+			return
+		}
+	}
+
+	return
+}
+
+func bindQueryParams(request *http.Request, iface interface{}) (err error) {
+	values := request.URL.Query()
+	if len(values) == 0 {
+		return nil
+	}
+	val := valueOf(iface)
+	typ := val.Type().Elem()
+
+	if valueOf(iface).IsNil() {
+		elemVal := reflect.New(typ)
+		val.Set(elemVal)
+		val = elemVal
+	} else {
+		val = val.Elem()
+	}
+
+	for i, n := 0, typ.NumField(); i < n; i++ {
+		fTyp := typ.Field(i)
+		tag := fTyp.Tag
+		pKey := tag.Get(FORM)
+		pVal, exist := values[pKey]
+		if !exist || len(pVal) == 0 {
+			continue
+		}
+		fVal := val.Field(i)
+		if !fVal.CanSet() {
+			continue
+		}
+		err = bindField(pVal[0], fVal, fTyp)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
 
-func bindFormParams(ctx *Context, iface interface{}) (err error) {
-	if iface == nil {
-		return errors.New("param is nil")
-	}
-	if !isPtr(iface) {
-		return fmt.Errorf("param isn't a pointer")
-	}
-	req := ctx.Request
+const DEFAULT_SIZE = 32 * 1024 * 1024
+
+func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	err = req.ParseForm()
 	if err != nil {
 		return
@@ -619,7 +281,7 @@ func bindFormParams(ctx *Context, iface interface{}) (err error) {
 	if contentType != "" {
 		d, _, err := mime.ParseMediaType(contentType)
 		if d == "multipart/form-data" || err == nil {
-			err = req.ParseMultipartForm(0)
+			err = req.ParseMultipartForm(DEFAULT_SIZE)
 			if err != nil && err != http.ErrNotMultipart {
 				return err
 			}
@@ -644,14 +306,14 @@ func bindFormParams(ctx *Context, iface interface{}) (err error) {
 		tag := fTyp.Tag
 
 		if key := tag.Get(FORM); key != "" {
-			if pVal, exist := ctx.Request.Form[key]; exist && len(pVal) > 0 {
+			if pVal, exist := req.PostForm[key]; exist && len(pVal) > 0 {
 				err = bindField(pVal[0], fVal, fTyp)
 				if err != nil {
 					return
 				}
 			}
 		} else if key = tag.Get(FILE); key != "" {
-			if pVal, exist := ctx.Request.MultipartForm.File[key]; exist && len(pVal) > 0 {
+			if pVal, exist := req.MultipartForm.File[key]; exist && len(pVal) > 0 {
 				err = bindFile(pVal[0], fVal, fTyp)
 				if err != nil {
 					return
@@ -663,11 +325,9 @@ func bindFormParams(ctx *Context, iface interface{}) (err error) {
 	return nil
 }
 
-func BindJson(ctx *Context, iface interface{}) (err error) {
-	if !isPtr(iface) {
-		return fmt.Errorf("params isn't a pointer")
-	}
-	_json, err := ioutil.ReadAll(ctx.Request.Body)
+func bindJSON(req *http.Request, iface interface{}) (err error) {
+
+	_json, err := ioutil.ReadAll(req.Body)
 	if err != nil {
 		return
 	}
@@ -675,10 +335,11 @@ func BindJson(ctx *Context, iface interface{}) (err error) {
 	return
 }
 
-type ParamsHandler func(ctx *Context, iface interface{}) error
+//change the params to request
+type ParamsHandler func(req *http.Request, iface interface{}) error
 
 var paramsHandlers = map[string]ParamsHandler{
-	MIME_JSON:      BindJson,
+	MIME_JSON:      bindJSON,
 	MIME_POST:      bindFormParams,
 	MIME_MULT_POST: bindFormParams,
 }
@@ -698,9 +359,25 @@ const (
 	MIME_MULT_POST = "multipart/form-data"
 )
 
-func bind(c *Context, iface interface{}) error {
+func bind(c *Context, iface interface{}) (err error) {
+	if iface == nil {
+		return errors.New("param is nil")
+	}
+
 	if !isPtr(iface) {
-		return fmt.Errorf("params isn't a pointer")
+		return fmt.Errorf("param isn't a pointer")
+	}
+
+	//1.bind path params
+	err = bindPathParams(c.params, iface)
+	if err != nil {
+		return err
+	}
+
+	//2.bind url params
+	err = bindQueryParams(c.Request, iface)
+	if err != nil {
+		return err
 	}
 
 	mt, _, err := mime.ParseMediaType(c.GetHeader().Get(CONTENT_TYPE))
@@ -709,10 +386,11 @@ func bind(c *Context, iface interface{}) error {
 	}
 
 	if handler, exist := paramsHandlers[mt]; exist {
-		err = handler(c, iface)
+		//2.the params
+		err = handler(c.Request, iface)
 		return err
 	}
 	return UnsupportMimeType
 }
 
-var UnsupportMimeType = errors.New("unsupport mime-type")
+var UnsupportMimeType = errors.New("unsupport content type for params binding")

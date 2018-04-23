@@ -1,5 +1,10 @@
 package goil
 
+import (
+	"io"
+)
+
 type Render interface {
-	Render(ctx Context, contentType string) error
+	Render(content interface{}) io.Reader
+	ContentType() string
 }

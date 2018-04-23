@@ -39,6 +39,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//init the context
 		ctx := app.contextPool.Get().(*Context)
 		ctx.chain = chain
+		ctx.idx = 0
 		ctx.Response = app.respPool.Get().(*response)
 		ctx.Response.reset(w)
 		ctx.Request = r

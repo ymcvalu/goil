@@ -11,7 +11,8 @@ import (
 type Context struct {
 	Request  *http.Request
 	Response Response
-	chain    *Middleware
+	chain    HandlerChain
+	idx      int
 	params   Params
 	err      error
 }
@@ -22,30 +23,15 @@ const (
 
 //执行 middleware chain 的下一个节点
 //仅用于 middleware 中执行
-func (ctx *Context) NextWithError() (err error) {
-	chain := ctx.chain
-	if ctx.chain == nil {
-		err = errors.New("nil chain")
-		ctx.err = err
-		return
-	}
-	handler := chain.handler
-	ctx.chain = chain.next
-	handler(ctx)
-	err = ctx.err
-	return
-}
-
-//执行 middleware chain 的下一个节点
-//仅用于 middleware 中执行
 func (ctx *Context) Next() {
 	chain := ctx.chain
-	if ctx.chain == nil {
-		ctx.err = errors.New("nil chain")
+	if ctx.chain == nil || ctx.idx >= len(chain) {
+		ctx.err = errors.New("no handler")
 		return
 	}
-	handler := chain.handler
-	ctx.chain = chain.next
+	handler := chain[ctx.idx]
+	ctx.idx++
+
 	handler(ctx)
 	return
 }
@@ -54,12 +40,16 @@ func (ctx *Context) Next() {
 //仅用于 middleware 中执行
 func (ctx *Context) NextCall() (handler HandlerFunc) {
 	chain := ctx.chain
-	if chain == nil {
+	if chain == nil || ctx.idx >= len(chain) {
 		return
 	}
-	handler = chain.handler
-	ctx.chain = chain.next
+	handler = chain[ctx.idx]
+	ctx.idx++
 	return
+}
+
+func (ctx *Context) Abort() {
+	ctx.idx = len(ctx.chain)
 }
 
 func (c *Context) String(str string) {
@@ -108,6 +98,11 @@ func (c *Context) Body(contentType string, body []byte) {
 	}
 }
 
+//Render the render
+func (c *Context) Render(r Render, content interface{}) {
+	c.Stream(r.ContentType(), r.Render(content), true)
+}
+
 //if the r implements io.Closer and the autoClose is true,then the r will be closed
 func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 	if autoClose {
@@ -150,47 +145,6 @@ func (c *Context) Bind(iface interface{}) error {
 	return nil
 }
 
-func (c *Context) BindParams(iface interface{}) error {
-	err := bindPathParams(c, iface)
-	if err != nil {
-		return err
-	}
-	legal, err := validate(iface)
-	if err != nil {
-		return err
-	}
-	if !legal {
-		return errors.New("params validate failed.")
-	}
-	return nil
-}
-
-func (c *Context) Bind2(iface interface{}) error {
-	err := bindPathParams(c, iface)
-	if err != nil {
-		return err
-	}
-	legal, err := validate(iface)
-	if err != nil {
-		return err
-	}
-	if !legal {
-		return errors.New("params validate failed.")
-	}
-	err = bind(c, iface)
-	if err != nil {
-		return err
-	}
-	legal, err = validate(iface)
-	if err != nil {
-		return err
-	}
-	if !legal {
-		return errors.New("params validate failed.")
-	}
-	return nil
-}
-
 func (c *Context) Param(key string) (value string, exist bool) {
 	value, exist = c.params[key]
 	return
@@ -215,15 +169,15 @@ func (c *Context) DefQuery(key string, def string) string {
 	return def
 }
 
-func (c *Context) GetHeader() http.Header {
-	return c.Request.Header
-}
-
 func (c *Context) BodyReader() io.Reader {
 	//server will close the body auto
 	return c.Request.Body
 }
 
-func (c *Context) BodyData() ([]byte, error) {
+func (c *Context) GetHeader() http.Header {
+	return c.Request.Header
+}
+
+func (c *Context) ReqBody() ([]byte, error) {
 	return ioutil.ReadAll(c.Request.Body)
 }
