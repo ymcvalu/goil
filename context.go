@@ -140,10 +140,27 @@ func (c *Context) Bind(iface interface{}) error {
 		return err
 	}
 	if !legal {
-		return errors.New("params validate failed.")
+		return ParamsInvalidError
 	}
 	return nil
 }
+
+func (c *Context) BindQuery(iface interface{}) error {
+	err := bindQueryParams(c.Request, iface)
+	if err != nil {
+		return err
+	}
+	legal, err := validate(iface)
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return ParamsInvalidError
+	}
+	return nil
+}
+
+var ParamsInvalidError = errors.New("params validate failed.")
 
 func (c *Context) Param(key string) (value string, exist bool) {
 	value, exist = c.params[key]

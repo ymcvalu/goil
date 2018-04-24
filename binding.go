@@ -12,8 +12,7 @@ import (
 	"reflect"
 )
 
-func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
-	fmt.Printf("when bind field:%s\n", src)
+func bindString(src string, dest reflect.Value, fTyp reflect.StructField) error {
 	tag := fTyp.Tag
 	conv := tag.Get(CONVERT)
 	if convFunc, exists := convertFunc[conv]; exists {
@@ -26,79 +25,84 @@ func bindField(src string, dest reflect.Value, fTyp reflect.StructField) error {
 		}
 		return nil
 	}
-
+	var v interface{}
+	var err error
+outer:
 	switch dest.Type().Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 		conv = "_a2i"
+		v, err = convertFunc[conv](src, dest.Type())
+		if err != nil {
+			break outer
+		}
+		dest.SetInt(v.(int64))
 	case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		conv = "_a2u"
+		v, err = convertFunc[conv](src, dest.Type())
+		if err != nil {
+			break outer
+		}
+		dest.SetUint(v.(uint64))
 	case reflect.Bool:
 		conv = "_a2b"
+		v, err = convertFunc[conv](src, dest.Type())
+		if err != nil {
+			break outer
+		}
+		dest.SetBool(v.(bool))
 	case reflect.Float32, reflect.Float64:
 		conv = "_a2f"
+		v, err = convertFunc[conv](src, dest.Type())
+		if err != nil {
+			break outer
+		}
+		dest.SetFloat(v.(float64))
+	case reflect.String:
+		dest.SetString(src)
 	case reflect.Ptr:
 		elemType := dest.Type().Elem()
+		elemVal := reflect.New(elemType)
+		dest.Set(elemVal)
+		elemVal = elemVal.Elem()
 		switch elemType.Kind() {
 		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 			conv = "_a2i"
+			v, err = convertFunc[conv](src, dest.Type())
+			if err != nil {
+				break outer
+			}
+			elemVal.SetInt(v.(int64))
 		case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 			conv = "_a2u"
+			v, err = convertFunc[conv](src, dest.Type())
+			if err != nil {
+				break outer
+			}
+			elemVal.SetUint(v.(uint64))
 		case reflect.Bool:
 			conv = "_a2b"
+			v, err = convertFunc[conv](src, dest.Type())
+			if err != nil {
+				break outer
+			}
+			elemVal.SetBool(v.(bool))
 		case reflect.Float32, reflect.Float64:
 			conv = "_a2f"
-		case reflect.String:
-			conv = ""
-		default:
-			return fmt.Errorf("unsupport type for binding params %s to %s", src, dest)
-		}
-	case reflect.String:
-		conv = ""
-	default:
-		return fmt.Errorf("unsupport type for binding params %s to %s", src, dest)
-	}
-	var val interface{}
-	if conv != "" {
-		v, err := convertFunc[conv](src, dest.Type())
-		if err != nil {
-			return fmt.Errorf("when binding params %v to %v:%s", src, dest, err)
-		}
-		val = v
-	} else {
-		val = src
-	}
-
-	if dest.CanSet() {
-		switch dest.Kind() {
-		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
-			dest.SetInt(val.(int64))
-		case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			dest.SetUint(val.(uint64))
-		case reflect.Bool:
-			dest.SetBool(val.(bool))
-		case reflect.Float32, reflect.Float64:
-			dest.SetFloat(val.(float64))
-		case reflect.Ptr:
-			elemType := dest.Type().Elem()
-			elemVal := reflect.New(elemType)
-			dest.Set(elemVal)
-			switch elemType.Kind() {
-			case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
-				elemVal.Elem().SetInt(val.(int64))
-			case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				elemVal.Elem().SetUint(val.(uint64))
-			case reflect.Bool:
-				elemVal.Elem().SetBool(val.(bool))
-			case reflect.Float32, reflect.Float64:
-				elemVal.Elem().SetFloat(val.(float64))
-			case reflect.String:
-				elemVal.Elem().SetString(val.(string))
+			v, err = convertFunc[conv](src, dest.Type())
+			if err != nil {
+				break outer
 			}
+			elemVal.SetFloat(v.(float64))
 		case reflect.String:
-			dest.SetString(val.(string))
+			elemVal.SetString(src)
+			// default:
+			// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
 		}
+		// default:
+		// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
 	}
-	return nil
+	return err
+
 }
 
 type File struct {
@@ -155,8 +159,8 @@ func bindFile(fh *multipart.FileHeader, dest reflect.Value, fTyp reflect.StructF
 		if err != nil {
 			return fmt.Errorf("open upload file:%s", err)
 		}
-		ptr := fd.(*os.File)
-		dest.Set(valueOf(ptr).Elem())
+
+		dest.Set(valueOf(fd.(*os.File)).Elem())
 	case File:
 		fd, err := fh.Open()
 		if err != nil {
@@ -182,9 +186,20 @@ func bindFile(fh *multipart.FileHeader, dest reflect.Value, fTyp reflect.StructF
 	case string:
 		dest.Set(valueOf(&fh.Filename).Elem())
 
-	default:
-		_ = d
-		return fmt.Errorf("bind file:unsupport type")
+		//default:
+		// return fmt.Errorf("bind file:unsupport type")
+	}
+
+	return nil
+}
+
+func bindSlice(src []string, dest reflect.Value, fTyp reflect.StructField) error {
+	elemType := fTyp.Type.Elem()
+	switch elemType.Kind() {
+	case reflect.String:
+		dest.Set(valueOf(src))
+		// default:
+		// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
 	}
 
 	return nil
@@ -202,9 +217,9 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 	if len(params) == 0 {
 		return
 	}
+
 	val := valueOf(iface)
 	typ := val.Type().Elem()
-
 	if valueOf(iface).IsNil() {
 		elemVal := reflect.New(typ)
 		val.Set(elemVal)
@@ -214,18 +229,28 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 	}
 
 	for i, n := 0, typ.NumField(); i < n; i++ {
+		fVal := val.Field(i)
+
+		if !fVal.CanSet() {
+			continue
+		}
 		fTyp := typ.Field(i)
+
+		//To support the embeded struct
+		if fTyp.Type.Kind() == reflect.Struct {
+			//need the pointer type interface
+			bindPathParams(params, fVal.Addr().Interface())
+			continue
+		}
+
 		tag := fTyp.Tag
 		pKey := tag.Get(PATH)
 		pVal, exist := params[pKey]
 		if !exist {
 			continue
 		}
-		fVal := val.Field(i)
-		if !fVal.CanSet() {
-			continue
-		}
-		err = bindField(pVal, fVal, fTyp)
+
+		err = bindString(pVal, fVal, fTyp)
 		if err != nil {
 			return
 		}
@@ -251,18 +276,26 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 	}
 
 	for i, n := 0, typ.NumField(); i < n; i++ {
+		fVal := val.Field(i)
+		if !fVal.CanSet() {
+			continue
+		}
 		fTyp := typ.Field(i)
+		if fTyp.Type.Kind() == reflect.Struct {
+			bindQueryParams(request, fVal.Addr().Interface())
+			continue
+		}
 		tag := fTyp.Tag
 		pKey := tag.Get(FORM)
 		pVal, exist := values[pKey]
 		if !exist || len(pVal) == 0 {
 			continue
 		}
-		fVal := val.Field(i)
-		if !fVal.CanSet() {
-			continue
+		if len(pVal) == 1 {
+			err = bindString(pVal[0], fVal, fTyp)
+		} else {
+			err = bindSlice(pVal, fVal, fTyp)
 		}
-		err = bindField(pVal[0], fVal, fTyp)
 		if err != nil {
 			return
 		}
@@ -279,9 +312,9 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	}
 	contentType := req.Header.Get("Content-Type")
 	if contentType != "" {
-		d, _, err := mime.ParseMediaType(contentType)
-		if d == "multipart/form-data" || err == nil {
-			err = req.ParseMultipartForm(DEFAULT_SIZE)
+		ct, _, err := mime.ParseMediaType(contentType)
+		if ct == MIME_MULT_POST && err == nil {
+			err = req.ParseMultipartForm(0)
 			if err != nil && err != http.ErrNotMultipart {
 				return err
 			}
@@ -303,14 +336,24 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			continue
 		}
 		fTyp := typ.Field(i)
-		tag := fTyp.Tag
+		if fTyp.Type.Kind() == reflect.Struct {
+			bindFormParams(req, fVal.Addr().Interface())
+			continue
+		}
 
+		tag := fTyp.Tag
 		if key := tag.Get(FORM); key != "" {
-			if pVal, exist := req.PostForm[key]; exist && len(pVal) > 0 {
-				err = bindField(pVal[0], fVal, fTyp)
-				if err != nil {
-					return
-				}
+			pVal, exist := req.PostForm[key]
+			if exist && len(pVal) == 0 {
+				continue
+			}
+			if len(pVal) == 1 {
+				err = bindString(pVal[0], fVal, fTyp)
+			} else {
+				err = bindSlice(pVal, fVal, fTyp)
+			}
+			if err != nil {
+				return
 			}
 		} else if key = tag.Get(FILE); key != "" {
 			if pVal, exist := req.MultipartForm.File[key]; exist && len(pVal) > 0 {

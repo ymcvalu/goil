@@ -24,3 +24,11 @@ func typeOf(iface interface{}) reflect.Type {
 func valueOf(iface interface{}) reflect.Value {
 	return reflect.ValueOf(iface)
 }
+
+func isStruct(iface interface{}) bool {
+	return typeOf(iface).Kind() == reflect.Struct
+}
+
+func isStructField(field reflect.StructField) bool {
+	return field.Type.Kind() == reflect.Struct
+}

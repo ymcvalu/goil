@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"goil"
 	"os"
 )
@@ -8,9 +9,13 @@ import (
 type Params struct {
 	Name     *string `form:"name" validator:"reg(^[a-z]*$)"`
 	Age      *int    `form:"age" validator:"range(0 150)"`
-	FileName *string `file:"music"`
+	FileName string  `file:"music"`
 	Size     int64   `file:"music"`
 	File     os.File `file:"music"`
+	Path     struct {
+		Path  string   `path:"path"`
+		Slice []string `form:"slice"`
+	}
 }
 
 func main() {
@@ -35,8 +40,10 @@ func main() {
 			"name": "Jim",
 			"age":  "19",
 		})
+		query := c.Request.URL.Query()
+		fmt.Println(query["get"])
 	})
-	app.POST("/json/echo", func(c *goil.Context) {
+	app.POST("/json/echo/:path", func(c *goil.Context) {
 		var params = Params{}
 		err := c.Bind(&params)
 

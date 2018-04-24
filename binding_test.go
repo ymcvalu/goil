@@ -27,32 +27,32 @@ func TestBinding(t *testing.T) {
 func TestParseTag(t *testing.T) {
 	tag1 := `min(1 2)max(1 2)`
 	name, params, error := parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = `min(1 2)`
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = ` min ( 1 2 )   `
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = ` min ( 1 2 ) max ( 2 3 4 ) `
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = `min`
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = `min max`
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = ` min `
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = ` min max `
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = `min min(1 2)max(2 3 4)max`
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 	tag1 = ` min min ( 1  2 ) max ( 2 3 4 ) max `
 	name, params, error = parseTag(tag1)
-	t.Errorf("%s %v %s", name, params, error)
+	t.Errorf("%s %v %v", name, params, error)
 }
