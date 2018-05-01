@@ -72,6 +72,7 @@ func main() {
 	app.POST("/session/:sess", session.EnableSessionMem(), func(c *goil.Context) {
 		val, _ := c.Param("sess")
 		c.Session().Set("sess", val)
+		c.String("set")
 	})
 	app.Run(":8081")
 }
