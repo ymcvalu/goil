@@ -64,6 +64,7 @@ func (s *SessionMem) Release() {
 	s.setExpire(15 * time.Minute)
 	s.mux.Unlock()
 	for {
+		logger.Debug("release session")
 		holder := atomic.LoadUint32(&s.holder)
 		if atomic.CompareAndSwapUint32(&s.holder, holder, holder-1) {
 			break

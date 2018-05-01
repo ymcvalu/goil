@@ -16,7 +16,8 @@ func initSession() {
 	sessMgr = NewManagerMem()
 	go func() {
 		for {
-			time.AfterFunc(time.Minute*5, sessMgr.SessionGC)
+			time.Sleep(5 * time.Minute)
+			sessMgr.SessionGC()
 		}
 	}()
 }
