@@ -29,16 +29,15 @@ func EnableSessionMem() goil.HandlerFunc {
 		sessionID := c.GetHeader().Get("goli_session_id")
 		if sessionID == "" {
 			sessionID = GenSessionID()
+			//c.GetHeader().Set("goli_session_id", sessionID)
+			c.Response.SetHeader("goli_session_id", sessionID)
 		}
 		session := sessMgr.SessionGet(sessionID)
 		c.Set(goil.SESSION, session)
 		c.Next()
 		defer func() {
 			err := recover()
-			sess := c.Session()
-			if sess != nil {
-				sess.Release()
-			}
+			c.ReleaseSession()
 			if err != nil {
 				panic(err)
 			}

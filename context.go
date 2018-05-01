@@ -266,3 +266,13 @@ func (c *Context) Session() SessionEntry {
 	}
 	return nil
 }
+
+func (c *Context) ReleaseSession() {
+	if val := c.values[SESSION]; val != nil {
+		sess, ok := val.(SessionEntry)
+		if ok {
+			sess.Release()
+			delete(c.values, SESSION)
+		}
+	}
+}

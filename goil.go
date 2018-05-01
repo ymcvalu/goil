@@ -56,6 +56,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.params = params
 		ctx.values = make(map[string]interface{})
 		ctx.Next()
+
 		//detach
 		ctx.Request = nil
 		ctx.values = nil
