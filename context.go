@@ -5,16 +5,25 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
+	"strings"
+)
+
+const (
+	SESSION = "_SESSION_"
 )
 
 type Context struct {
+	Logger
 	Request  *http.Request
 	Response Response
 	chain    HandlerChain
 	idx      int
 	params   Params
+	errCode  int
 	err      error
+	values   map[string]interface{}
 }
 
 const (
@@ -197,4 +206,63 @@ func (c *Context) GetHeader() http.Header {
 
 func (c *Context) ReqBody() ([]byte, error) {
 	return ioutil.ReadAll(c.Request.Body)
+}
+
+// ClientIP implements a best effort algorithm to return the real client IP, it parses
+// X-Real-IP and X-Forwarded-For in order to work properly with reverse-proxies such us: nginx or haproxy.
+// Use X-Forwarded-For before X-Real-Ip as nginx uses X-Real-Ip with the proxy's IP.
+//TODO:add reverse proxy toggle
+func (c *Context) ClientIP() string {
+
+	clientIP := c.GetHeader().Get("X-Forwarded-For")
+	if index := strings.IndexByte(clientIP, ','); index >= 0 {
+		clientIP = clientIP[0:index]
+	}
+	clientIP = strings.TrimSpace(clientIP)
+	if clientIP != "" {
+		return clientIP
+	}
+	clientIP = strings.TrimSpace(c.GetHeader().Get("X-Real-Ip"))
+	if clientIP != "" {
+		return clientIP
+	}
+
+	if addr := c.GetHeader().Get("X-Appengine-Remote-Addr"); addr != "" {
+		return addr
+	}
+
+	if ip, _, err := net.SplitHostPort(strings.TrimSpace(c.Request.RemoteAddr)); err == nil {
+		return ip
+	}
+
+	return ""
+}
+
+func (c *Context) Get(key string) (val interface{}, exists bool) {
+	val, exists = c.values[key]
+	return
+}
+
+func (c *Context) GetDef(key string, def interface{}) interface{} {
+	val, exists := c.values[key]
+	if exists {
+		return val
+	}
+	return def
+}
+
+func (c *Context) Set(key string, value interface{}) {
+	c.values[key] = value
+}
+
+//get session
+func (c *Context) Session() SessionEntry {
+	val, ok := c.values[SESSION]
+	if !ok {
+		return nil
+	}
+	if sess, ok := val.(SessionEntry); ok {
+		return sess
+	}
+	return nil
 }

@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"goil"
+	"goil/session"
 	"os"
+
+	isatty "github.com/mattn/go-isatty"
 )
 
 type Params struct {
@@ -19,6 +22,7 @@ type Params struct {
 }
 
 func main() {
+
 	app := goil.New()
 	app.GET("/", func(c *goil.Context) {
 		c.String("hello,goil!")
@@ -44,6 +48,7 @@ func main() {
 		fmt.Println(query["get"])
 	})
 	app.POST("/json/echo/:path", func(c *goil.Context) {
+
 		var params = Params{}
 		err := c.Bind(&params)
 
@@ -54,12 +59,19 @@ func main() {
 			return
 		}
 		c.JSON(params)
-
+		c.Info(isatty.IsTerminal(os.Stdin.Fd()))
 	})
 	app.GET("/param/:name/:age", func(c *goil.Context) {
 		if val, exist := c.Param("age"); exist {
 			c.String(val)
 		}
+	})
+	app.GET("/session", session.EnableSessionMem(), func(c *goil.Context) {
+		c.String(c.Session().Get("sess").(string))
+	})
+	app.POST("/session/:sess", session.EnableSessionMem(), func(c *goil.Context) {
+		val, _ := c.Param("sess")
+		c.Session().Set("sess", val)
 	})
 	app.Run(":8081")
 }

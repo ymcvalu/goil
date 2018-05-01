@@ -291,10 +291,11 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 		if !exist || len(pVal) == 0 {
 			continue
 		}
-		if len(pVal) == 1 {
-			err = bindString(pVal[0], fVal, fTyp)
-		} else {
+
+		if fTyp.Type.Kind() == reflect.Slice {
 			err = bindSlice(pVal, fVal, fTyp)
+		} else {
+			err = bindString(pVal[0], fVal, fTyp)
 		}
 		if err != nil {
 			return
@@ -347,10 +348,11 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			if exist && len(pVal) == 0 {
 				continue
 			}
-			if len(pVal) == 1 {
-				err = bindString(pVal[0], fVal, fTyp)
-			} else {
+			if fTyp.Type.Kind() == reflect.Slice {
 				err = bindSlice(pVal, fVal, fTyp)
+			} else {
+
+				err = bindString(pVal[0], fVal, fTyp)
 			}
 			if err != nil {
 				return
