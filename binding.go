@@ -425,7 +425,7 @@ func bind(c *Context, iface interface{}) (err error) {
 		return err
 	}
 
-	mt, _, err := mime.ParseMediaType(c.GetHeader().Get(CONTENT_TYPE))
+	mt, _, err := mime.ParseMediaType(c.Headers().Get(CONTENT_TYPE))
 	if err != nil {
 		return err
 	}

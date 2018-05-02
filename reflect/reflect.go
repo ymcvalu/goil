@@ -14,3 +14,8 @@ func ValueOf(val interface{}) reflect.Value {
 func TypeOf(val interface{}) reflect.Type {
 	return reflect.TypeOf(val)
 }
+
+func IsPtr(iface interface{}) bool {
+	k := reflect.TypeOf(iface).Kind()
+	return k == reflect.Ptr
+}

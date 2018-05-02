@@ -10,10 +10,6 @@ import (
 	"strings"
 )
 
-const (
-	SESSION = "_SESSION_"
-)
-
 type Context struct {
 	Logger
 	Request  *http.Request
@@ -200,7 +196,7 @@ func (c *Context) BodyReader() io.Reader {
 	return c.Request.Body
 }
 
-func (c *Context) GetHeader() http.Header {
+func (c *Context) Headers() http.Header {
 	return c.Request.Header
 }
 
@@ -214,7 +210,7 @@ func (c *Context) ReqBody() ([]byte, error) {
 //TODO:add reverse proxy toggle
 func (c *Context) ClientIP() string {
 
-	clientIP := c.GetHeader().Get("X-Forwarded-For")
+	clientIP := c.Headers().Get("X-Forwarded-For")
 	if index := strings.IndexByte(clientIP, ','); index >= 0 {
 		clientIP = clientIP[0:index]
 	}
@@ -222,12 +218,12 @@ func (c *Context) ClientIP() string {
 	if clientIP != "" {
 		return clientIP
 	}
-	clientIP = strings.TrimSpace(c.GetHeader().Get("X-Real-Ip"))
+	clientIP = strings.TrimSpace(c.Headers().Get("X-Real-Ip"))
 	if clientIP != "" {
 		return clientIP
 	}
 
-	if addr := c.GetHeader().Get("X-Appengine-Remote-Addr"); addr != "" {
+	if addr := c.Headers().Get("X-Appengine-Remote-Addr"); addr != "" {
 		return addr
 	}
 
@@ -257,7 +253,7 @@ func (c *Context) Set(key string, value interface{}) {
 
 //get session
 func (c *Context) Session() SessionEntry {
-	val, ok := c.values[SESSION]
+	val, ok := c.values[sessionTag]
 	if !ok {
 		return nil
 	}
@@ -265,14 +261,4 @@ func (c *Context) Session() SessionEntry {
 		return sess
 	}
 	return nil
-}
-
-func (c *Context) ReleaseSession() {
-	if val := c.values[SESSION]; val != nil {
-		sess, ok := val.(SessionEntry)
-		if ok {
-			sess.Release()
-			delete(c.values, SESSION)
-		}
-	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 type Params struct {
-	Name     *string `form:"name" validator:"reg(^[a-z]*$)"`
+	Name     string  `form:"name" validator:"reg(^[a-z]*$)"`
 	Age      *int    `form:"age" validator:"range(0 150)"`
 	FileName string  `file:"music"`
 	Size     int64   `file:"music"`
@@ -67,7 +67,13 @@ func main() {
 		}
 	})
 	app.GET("/session", session.EnableSessionMem(), func(c *goil.Context) {
-		c.String(c.Session().Get("sess").(string))
+		sess, ok := c.Session().Get("sess").(string)
+		if ok {
+			c.String(sess)
+		} else {
+			c.String("sess not set")
+		}
+
 	})
 	app.POST("/session/:sess", session.EnableSessionMem(), func(c *goil.Context) {
 		val, _ := c.Param("sess")

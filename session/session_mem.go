@@ -5,14 +5,13 @@ import (
 	"goil"
 	. "goil/reflect"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
 type SessionMem struct {
-	holder    uint32
 	mux       sync.RWMutex
-	expireAt  int64
+	released  int64
+	holder    uint32
 	values    map[interface{}]interface{}
 	sessionID string
 }
@@ -42,7 +41,7 @@ func (s *SessionMem) Delete(key interface{}) {
 	delete(s.values, key)
 	s.mux.Unlock()
 }
-func (s *SessionMem) Exist(key interface{}) bool {
+func (s *SessionMem) Exists(key interface{}) bool {
 	if !CanComp(key) {
 		return false
 	}
@@ -52,44 +51,39 @@ func (s *SessionMem) Exist(key interface{}) bool {
 	return ok
 }
 
+func (s *SessionMem) Flush() {
+	s.mux.Lock()
+	s.values = make(map[interface{}]interface{})
+	s.mux.Unlock()
+}
+
 func (s *SessionMem) SessionID() string {
 	return s.sessionID
 }
-func (s *SessionMem) hold() {
-	atomic.AddUint32(&s.holder, 1)
-}
 
-func (s *SessionMem) Release() {
+// when a goroutine need to acquire a session,need to execute the hole method
+func (s *SessionMem) hold() (alive bool) {
 	s.mux.Lock()
-	s.setExpire(15 * time.Minute)
-	s.mux.Unlock()
-	for {
-		holder := atomic.LoadUint32(&s.holder)
-		if atomic.CompareAndSwapUint32(&s.holder, holder, holder-1) {
-			break
-		}
+	if s.holder > 0 || s.released+_ExpireDuration < time.Now().Unix() {
+		s.holder++
+		alive = true
 	}
-}
-
-func (s *SessionMem) setExpire(duration time.Duration) {
-	expireAt := time.Now().Add(duration).Unix()
-	s.expireAt = expireAt
-}
-
-func (s *SessionMem) isActive() bool {
-	return atomic.LoadUint32(&s.holder) > 0
-}
-
-func (s *SessionMem) isExpire(e int64) bool {
-	s.mux.RLock()
-	expire := s.expireAt >= e
-	s.mux.RUnlock()
-	return expire
-}
-
-func (s *SessionMem) lock() {
-	s.mux.Lock()
-}
-func (s *SessionMem) unlock() {
 	s.mux.Unlock()
+	return
+}
+
+// when a goroutine need to release a session,need to execute the method
+func (s *SessionMem) release() {
+	s.mux.Lock()
+	s.released = time.Now().Unix()
+	s.holder--
+	s.mux.Unlock()
+
+}
+
+func (s *SessionMem) isExpire() (expire bool) {
+	s.mux.RLock()
+	expire = s.holder <= 0 && s.released+_ExpireDuration >= time.Now().Unix()
+	s.mux.RUnlock()
+	return
 }

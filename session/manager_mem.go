@@ -1,7 +1,6 @@
 package session
 
 import (
-	"goil"
 	"sync"
 	"time"
 )
@@ -31,7 +30,7 @@ func (c *Cache) Get(sessionID string) *SessionMem {
 	sess.holder = 0
 	sess.mux = sync.RWMutex{}
 	sess.values = make(map[interface{}]interface{})
-	sess.expireAt = time.Now().Add(time.Minute * 15).Unix()
+	sess.released = time.Now().Unix()
 	return sess
 }
 
@@ -47,36 +46,29 @@ type ManagerMem struct {
 	cache   SessionCache
 }
 
-func NewManagerMem() goil.SessionManager {
+func NewManagerMem() *ManagerMem {
 	return &ManagerMem{
 		entries: make(map[string]*SessionMem),
 		cache:   NewCache(),
 	}
 }
 
-func (m *ManagerMem) SessionGet(sessionID string) goil.SessionEntry {
-	now := time.Now().Unix()
+func (m *ManagerMem) SessionGet(sessionID string) *SessionMem {
+	//try to acquire the alive session
 	m.mu.RLock()
 	session := m.entries[sessionID]
 
-	if session != nil {
-		session.lock()
-		if session.isActive() || !session.isExpire(now) {
-			session.hold()
-			m.mu.RUnlock()
-			session.unlock()
-			return session
-		}
-		session.unlock()
+	if session != nil && session.hold() {
+		m.mu.RUnlock()
+		return session
 	}
 	m.mu.RUnlock()
+	//the session need to create
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	session = m.entries[sessionID]
 	if session != nil {
-		if session.isActive() || !session.isExpire(now) {
-			session.hold()
+		if session.hold() {
 			return session
 		}
 		m.cache.Put(session)
@@ -108,10 +100,9 @@ func (m *ManagerMem) SessionCount() int {
 	return count
 }
 func (m *ManagerMem) SessionGC() {
-	now := time.Now().Unix()
 	m.mu.Lock()
 	for k, v := range m.entries {
-		if v.isActive() || !v.isExpire(now) {
+		if !v.isExpire() {
 			continue
 		}
 		delete(m.entries, k)

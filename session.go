@@ -1,20 +1,25 @@
 package goil
 
-//session manager is the manager of sessin
-type SessionManager interface {
-	SessionGet(sessionID string) SessionEntry
-	SessionExists(sessionID string) bool
-	SessionDestroy(sessionID string)
-	SessionCount() int
-	SessionGC()
-}
-
 //session entry is a session
 type SessionEntry interface {
 	Get(value interface{}) interface{}
 	Set(key, value interface{}) error
 	Delete(key interface{})
-	Exist(key interface{}) bool
+	Exists(key interface{}) bool
+	Flush()
 	SessionID() string
-	Release()
+}
+
+const (
+	SESSION = "_SESSION_"
+)
+
+var sessionTag = SESSION
+
+func SetSessionTag(tag string) {
+	sessionTag = tag
+}
+
+func GetSessionTag() string {
+	return sessionTag
 }
