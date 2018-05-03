@@ -12,19 +12,19 @@ type SessionMem struct {
 	mux       sync.RWMutex
 	released  int64
 	holder    uint32
-	values    map[interface{}]interface{}
+	values    map[Any]Any
 	sessionID string
 }
 
 var _ goil.SessionEntry = new(SessionMem)
 
-func (s *SessionMem) Get(key interface{}) interface{} {
+func (s *SessionMem) Get(key Any) Any {
 	s.mux.RLock()
 	value := s.values[key]
 	s.mux.RUnlock()
 	return value
 }
-func (s *SessionMem) Set(key, value interface{}) error {
+func (s *SessionMem) Set(key, value Any) error {
 	if !CanComp(key) {
 		return errors.New("the type of key unsupports compare")
 	}
@@ -33,7 +33,7 @@ func (s *SessionMem) Set(key, value interface{}) error {
 	s.mux.Unlock()
 	return nil
 }
-func (s *SessionMem) Delete(key interface{}) {
+func (s *SessionMem) Delete(key Any) {
 	if !CanComp(key) {
 		return
 	}
@@ -41,7 +41,7 @@ func (s *SessionMem) Delete(key interface{}) {
 	delete(s.values, key)
 	s.mux.Unlock()
 }
-func (s *SessionMem) Exists(key interface{}) bool {
+func (s *SessionMem) Exists(key Any) bool {
 	if !CanComp(key) {
 		return false
 	}
@@ -53,7 +53,7 @@ func (s *SessionMem) Exists(key interface{}) bool {
 
 func (s *SessionMem) Flush() {
 	s.mux.Lock()
-	s.values = make(map[interface{}]interface{})
+	s.values = make(map[Any]Any)
 	s.mux.Unlock()
 }
 

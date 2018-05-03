@@ -13,7 +13,7 @@ type SessionRedis struct {
 	client    *redis.RedisClient
 }
 
-func (s *SessionRedis) Get(key interface{}) interface{} {
+func (s *SessionRedis) Get(key Any) Any {
 	if !reflect.CanComp(key) {
 		return errors.New("the type of key unsupports compare")
 	}
@@ -21,7 +21,10 @@ func (s *SessionRedis) Get(key interface{}) interface{} {
 	if err != nil {
 		return nil
 	}
-	v, err := s.client.HGet(s.hid, string(rk))
+	sk := string(rk)
+	s.client.Expire(sk, _ExpireDuration)
+	v, err := s.client.HGet(s.hid, sk)
+
 	if err != nil {
 		logger.Errorf("when get session:%s", err)
 		return nil
@@ -34,7 +37,7 @@ func (s *SessionRedis) Get(key interface{}) interface{} {
 	return val
 }
 
-func (s *SessionRedis) Set(key, value interface{}) error {
+func (s *SessionRedis) Set(key, value Any) error {
 	if !reflect.CanComp(key) {
 		return errors.New("the type of key unsupports compare")
 	}
@@ -42,15 +45,17 @@ func (s *SessionRedis) Set(key, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	rv, err := encoding.GobEncode(key)
+	rv, err := encoding.GobEncode(value)
 	if err != nil {
 		return err
 	}
-	err = s.client.HSet(s.hid, string(rk), string(rv))
+	sk := string(rv)
+	s.client.Expire(sk, _ExpireDuration)
+	err = s.client.HSet(s.hid, string(rk), sk)
 	return err
 }
 
-func (s *SessionRedis) Delete(key interface{}) {
+func (s *SessionRedis) Delete(key Any) {
 	if !reflect.CanComp(key) {
 		logger.Error("session:the type of key unsupports compare")
 		return
@@ -60,10 +65,11 @@ func (s *SessionRedis) Delete(key interface{}) {
 		logger.Errorf("when delete session:%s", err)
 		return
 	}
-	_, err = s.client.HDel(s.hid, string(rk))
-
+	sk := string(rk)
+	s.client.Expire(sk, _ExpireDuration)
+	_, err = s.client.HDel(s.hid, sk)
 }
-func (s *SessionRedis) Exists(key interface{}) bool {
+func (s *SessionRedis) Exists(key Any) bool {
 	if !reflect.CanComp(key) {
 		logger.Error("session:the type of key unsupports compare")
 		return false
@@ -73,8 +79,9 @@ func (s *SessionRedis) Exists(key interface{}) bool {
 		logger.Errorf("in session exists:%s", err)
 		return false
 	}
-
-	n, err := s.client.HExist(s.hid, string(rk))
+	sk := string(rk)
+	s.client.Expire(sk, _ExpireDuration)
+	n, err := s.client.HExist(s.hid, sk)
 	if err != nil {
 		logger.Errorf("in session exists:%s", err)
 		return false

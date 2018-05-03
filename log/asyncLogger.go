@@ -256,11 +256,7 @@ func (l *AsyncLogger) Panicf(format string, msg ...interface{}) {
 	entry.init(l)
 	m := fmt.Sprintf(format, msg...)
 	entry.msg = m
-	entry.cb = make(chan signal)
-	entry.flag |= wait
 	l.mq <- entry
-	<-entry.cb
-	l.putEntry(entry)
 	panic(m)
 }
 
@@ -273,11 +269,7 @@ func (l *AsyncLogger) Panic(msg ...interface{}) {
 	entry.init(l)
 	m := fmt.Sprint(msg...)
 	entry.msg = m
-	entry.flag |= wait
-	entry.cb = make(chan signal)
 	l.mq <- entry
-	<-entry.cb
-	l.putEntry(entry)
 	panic(m)
 }
 

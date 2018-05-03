@@ -22,7 +22,7 @@ type Params struct {
 }
 
 func main() {
-
+	session.EnableRdsSession()
 	app := goil.New()
 	app.GET("/", func(c *goil.Context) {
 		c.String("hello,goil!")
@@ -66,7 +66,7 @@ func main() {
 			c.String(val)
 		}
 	})
-	app.GET("/session", session.EnableSessionMem(), func(c *goil.Context) {
+	app.GET("/session", session.UseSession(), func(c *goil.Context) {
 		sess, ok := c.Session().Get("sess").(string)
 		if ok {
 			c.String(sess)
@@ -75,7 +75,7 @@ func main() {
 		}
 
 	})
-	app.POST("/session/:sess", session.EnableSessionMem(), func(c *goil.Context) {
+	app.POST("/session/:sess", session.UseSession(), func(c *goil.Context) {
 		val, _ := c.Param("sess")
 		c.Session().Set("sess", val)
 		c.String("set")

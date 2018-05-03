@@ -24,7 +24,7 @@ type Logger struct {
 	level  int
 }
 
-var DefLogger = New(os.Stdin, "[Goil]", LstdFlags, DebugLevel)
+var DefLogger = New(os.Stdin, "", LstdFlags, DebugLevel)
 
 func New(out io.Writer, prefix string, flag int, level int) *Logger {
 	if out == nil {

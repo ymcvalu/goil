@@ -251,6 +251,10 @@ func (c *Context) Set(key string, value interface{}) {
 	c.values[key] = value
 }
 
+func (c *Context) Del(key string) {
+	delete(c.values, key)
+}
+
 //get session
 func (c *Context) Session() SessionEntry {
 	val, ok := c.values[sessionTag]

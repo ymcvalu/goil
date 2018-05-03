@@ -5,39 +5,35 @@ import (
 	"time"
 )
 
-type SessionCache interface {
-	Get(sessionID string) *SessionMem
-	Put(entry *SessionMem)
-}
-
-type Cache struct {
+type MemSessionCache struct {
 	pool sync.Pool
 }
 
-func NewCache() SessionCache {
-	return &Cache{
-		pool: sync.Pool{
-			New: func() interface{} {
-				return &SessionMem{}
-			},
-		},
-	}
-}
-
-func (c *Cache) Get(sessionID string) *SessionMem {
+func (c *MemSessionCache) Get(sessionID string) Session {
 	sess := c.pool.Get().(*SessionMem)
 	sess.sessionID = sessionID
 	sess.holder = 0
 	sess.mux = sync.RWMutex{}
-	sess.values = make(map[interface{}]interface{})
+	sess.values = make(map[Any]Any)
 	sess.released = time.Now().Unix()
 	return sess
 }
 
-func (c *Cache) Put(sess *SessionMem) {
+func (c *MemSessionCache) Put(session Session) {
+	sess := session.(*SessionMem)
 	sess.values = nil
 	sess.sessionID = ""
 	c.pool.Put(sess)
+}
+
+func NewMemCache() SessionCache {
+	return &MemSessionCache{
+		pool: sync.Pool{
+			New: func() Any {
+				return &SessionMem{}
+			},
+		},
+	}
 }
 
 type ManagerMem struct {
@@ -46,14 +42,16 @@ type ManagerMem struct {
 	cache   SessionCache
 }
 
+var _ SessionManager = new(ManagerMem)
+
 func NewManagerMem() *ManagerMem {
 	return &ManagerMem{
 		entries: make(map[string]*SessionMem),
-		cache:   NewCache(),
+		cache:   NewMemCache(),
 	}
 }
 
-func (m *ManagerMem) SessionGet(sessionID string) *SessionMem {
+func (m *ManagerMem) SessionGet(sessionID string) Session {
 	//try to acquire the alive session
 	m.mu.RLock()
 	session := m.entries[sessionID]
@@ -73,9 +71,16 @@ func (m *ManagerMem) SessionGet(sessionID string) *SessionMem {
 		}
 		m.cache.Put(session)
 	}
-	session = m.cache.Get(sessionID)
+	session = m.cache.Get(sessionID).(*SessionMem)
 	m.entries[sessionID] = session
+	session.hold()
 	return session
+}
+
+func (m *ManagerMem) SessionPut(sess Session) {
+	if s, ok := sess.(*SessionMem); ok {
+		s.release()
+	}
 }
 
 func (m *ManagerMem) SessionExists(sessionID string) bool {

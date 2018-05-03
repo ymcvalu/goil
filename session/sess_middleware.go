@@ -2,44 +2,30 @@ package session
 
 import (
 	"goil"
-	"goil/util"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/satori/go.uuid"
 )
 
-var sessMgr *ManagerMem
-var once sync.Once = sync.Once{}
-
-func initSession() {
-	sessMgr = NewManagerMem()
-	go func() {
-		for {
-			time.Sleep(util.MinToDuration(_GCDuration))
-			sessMgr.SessionGC()
-		}
-	}()
-}
-
-func EnableSessionMem() goil.HandlerFunc {
-	//init the session
-	once.Do(initSession)
+func UseSession() goil.HandlerFunc {
+	//using memory sessin default
+	//can call EnableRdsSession before UseSession to use the redis session
+	EnableMemSession()
 	return func(c *goil.Context) {
-		sessionID := c.Headers().Get("goli_session_id")
+		sessionID := c.Headers().Get(_ClientSidTag)
 		if sessionID == "" {
 			sessionID = GenSessionID()
-			c.Headers().Set("goli_session_id", sessionID)
-			c.Response.SetHeader("goli_session_id", sessionID)
+			c.Headers().Set(_ClientSidTag, sessionID)
 		}
+		c.Response.SetHeader(_ClientSidTag, sessionID)
 		session := sessMgr.SessionGet(sessionID)
 		c.Set(goil.GetSessionTag(), session)
 		c.Next()
 		defer func() {
+			//intercept the panic
 			err := recover()
-			session.release()
-			c.Set(goil.GetSessionTag(), nil)
+			c.Del(goil.GetSessionTag())
+			sessMgr.SessionPut(session)
 			if err != nil {
 				panic(err)
 			}
