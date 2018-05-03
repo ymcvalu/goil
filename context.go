@@ -1,12 +1,14 @@
 package goil
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 )
 
@@ -21,10 +23,6 @@ type Context struct {
 	err      error
 	values   map[string]interface{}
 }
-
-const (
-	CONTENT_TYPE = "Content-Type"
-)
 
 //执行 middleware chain 的下一个节点
 //仅用于 middleware 中执行
@@ -57,10 +55,187 @@ func (ctx *Context) Abort() {
 	ctx.idx = len(ctx.chain)
 }
 
+func (c *Context) ReqBody() io.Reader {
+	//server will close the body auto
+	return c.Request.Body
+}
+
+//get request headers
+func (c *Context) Headers() http.Header {
+	return c.Request.Header
+}
+
+//get request header by key
+func (c *Context) GetHeader(key string) string {
+	return c.Request.Header.Get(key)
+}
+
+//set header to response
+func (c *Context) SetHeader(key, value string) {
+	c.Response.SetHeader(key, value)
+}
+
+//get request cookie by name
+func (c *Context) GetCookie(name string) (string, error) {
+	cookie, err := c.Request.Cookie(name)
+	if err != nil {
+		return "", err
+	}
+	value, _ := url.QueryUnescape(cookie.Value)
+	return value, nil
+}
+
+//set cookie to response
+func (c *Context) SetCookie(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
+	if path == "" {
+		path = "/"
+	}
+	http.SetCookie(c.Response, &http.Cookie{
+		Name:     name,
+		Value:    url.QueryEscape(value),
+		MaxAge:   maxAge,
+		Path:     path,
+		Domain:   domain,
+		Secure:   secure,
+		HttpOnly: httpOnly,
+	})
+}
+
+func (c *Context) Flush() {
+	c.Response.Flush()
+}
+
+func (c *Context) Hijack() (conn net.Conn, io *bufio.ReadWriter, err error) {
+	return c.Response.Hijack()
+}
+
+func (c *Context) CloseNotify() <-chan bool {
+	return c.Response.CloseNotify()
+}
+
+func (c *Context) Param(key string) (value string, exist bool) {
+	value, exist = c.params[key]
+	return
+}
+
+func (c *Context) DefParam(key string, def string) string {
+	if value, exist := c.params[key]; exist {
+		return value
+	}
+	return def
+}
+
+func (c *Context) Query(key string) string {
+	values := c.Request.URL.Query()
+	return values.Get(key)
+
+}
+
+func (c *Context) DefQuery(key string, def string) string {
+	values := c.Request.URL.Query()
+	value := values.Get(key)
+	if value != "" {
+		return value
+	}
+	return def
+}
+
+func (c *Context) BindQuery(iface interface{}) error {
+	err := bindQueryParams(c.Request, iface)
+	if err != nil {
+		return err
+	}
+	legal, err := validate(iface)
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return ParamsInvalidError
+	}
+	return nil
+}
+
+func (c *Context) PostForm() url.Values {
+	c.Request.ParseForm()
+	return c.Request.PostForm
+}
+
+func (c *Context) Form() url.Values {
+	c.Request.ParseForm()
+	return c.Request.Form
+}
+
+func (c *Context) PostValue(key string) string {
+	return c.Request.PostFormValue(key)
+}
+
+func (c *Context) DefPostValue(key, def string) string {
+	value := c.Request.PostFormValue(key)
+	if value != "" {
+		return value
+	}
+	return def
+}
+
+func (c *Context) FormValue(key string) string {
+	return c.Request.FormValue(key)
+}
+
+func (c *Context) DefFormValue(key, def string) string {
+	value := c.Request.FormValue(key)
+	if value != "" {
+		return value
+	}
+	return def
+}
+
+func (c *Context) SaveFile(name, dest string) error {
+	_, fh, err := c.Request.FormFile(name)
+	if err != nil {
+		return err
+	}
+	src, err := fh.Open()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	out, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, src)
+	return err
+}
+
+//bind path param,form param,query param,file
+func (c *Context) Bind(iface interface{}) error {
+	err := bind(c, iface)
+	if err != nil {
+		return err
+	}
+	legal, err := validate(iface)
+
+	if err != nil {
+		return err
+	}
+	if !legal {
+		return ParamsInvalidError
+	}
+	return nil
+}
+
+//rewrite the response code
+func (c *Context) Status(code int) {
+	c.Response.WriteHeader(code)
+}
+
+//write the raw text
 func (c *Context) String(str string) {
 	c.Body(MIME_TEXT, []byte(str))
 }
 
+//wirte json
 func (c *Context) JSON(_json interface{}) {
 	byts, err := json.Marshal(_json)
 	if err != nil {
@@ -69,6 +244,7 @@ func (c *Context) JSON(_json interface{}) {
 	c.Body(MIME_JSON, byts)
 }
 
+//write indent json
 func (c *Context) IndentJSON(_json interface{}) {
 	byts, err := json.MarshalIndent(_json, "", " ")
 	if err != nil {
@@ -77,25 +253,20 @@ func (c *Context) IndentJSON(_json interface{}) {
 	c.Body(MIME_JSON, byts)
 }
 
-//TODO:the prefix can config
-const prefix = "for(;;)"
-
-func (c *Context) SecuryJSON(_json interface{}) {
+//wirte json wite a prefix
+func (c *Context) SecureJSON(_json interface{}) {
 	byts, err := json.Marshal(_json)
 	if err != nil {
 		panic(err)
 	}
-	l := len(prefix) + len(byts)
+	l := len(secure_json_prefix) + len(byts)
 	buf := make([]byte, l)
-	copy(buf[:len(prefix)], []byte(prefix))
-	copy(buf[len(prefix):], byts)
+	copy(buf[:len(secure_json_prefix)], []byte(secure_json_prefix))
+	copy(buf[len(secure_json_prefix):], byts)
 	c.Body(MIME_JSON, buf)
 }
 
-func (c *Context) Status(code int) {
-	c.Response.WriteHeader(code)
-}
-
+//write contentType and body
 func (c *Context) Body(contentType string, body []byte) {
 	c.Response.SetHeader(CONTENT_TYPE, contentType)
 	if _, err := c.Response.Write(body); err != nil {
@@ -108,6 +279,7 @@ func (c *Context) Render(r Render, content interface{}) {
 	c.Stream(r.ContentType(), r.Render(content), true)
 }
 
+//write content from reader
 //if the r implements io.Closer and the autoClose is true,then the r will be closed
 func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 	if autoClose {
@@ -132,76 +304,6 @@ func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 		}
 	}
 
-}
-
-func (c *Context) Bind(iface interface{}) error {
-	err := bind(c, iface)
-	if err != nil {
-		return err
-	}
-	legal, err := validate(iface)
-
-	if err != nil {
-		return err
-	}
-	if !legal {
-		return ParamsInvalidError
-	}
-	return nil
-}
-
-func (c *Context) BindQuery(iface interface{}) error {
-	err := bindQueryParams(c.Request, iface)
-	if err != nil {
-		return err
-	}
-	legal, err := validate(iface)
-	if err != nil {
-		return err
-	}
-	if !legal {
-		return ParamsInvalidError
-	}
-	return nil
-}
-
-var ParamsInvalidError = errors.New("params validate failed.")
-
-func (c *Context) Param(key string) (value string, exist bool) {
-	value, exist = c.params[key]
-	return
-}
-
-func (c *Context) DefParam(key string, def string) string {
-	if value, exist := c.params[key]; exist {
-		return value
-	}
-	return def
-}
-
-func (c *Context) Query(key string) (string, bool) {
-	vals, exist := c.Request.Form[key]
-	return vals[0], exist
-}
-
-func (c *Context) DefQuery(key string, def string) string {
-	if vals, exist := c.Request.PostForm[key]; exist {
-		return vals[0]
-	}
-	return def
-}
-
-func (c *Context) BodyReader() io.Reader {
-	//server will close the body auto
-	return c.Request.Body
-}
-
-func (c *Context) Headers() http.Header {
-	return c.Request.Header
-}
-
-func (c *Context) ReqBody() ([]byte, error) {
-	return ioutil.ReadAll(c.Request.Body)
 }
 
 // ClientIP implements a best effort algorithm to return the real client IP, it parses

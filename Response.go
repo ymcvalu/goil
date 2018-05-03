@@ -76,8 +76,8 @@ func (w *response) Write(bytes []byte) (n int, err error) {
 
 //WriteHeader set the response status code
 func (w *response) WriteHeader(statusCode int) {
-	if w.size != nowriten {
-		//TODO:add log
+	if w.size == nowriten {
+		logger.Debugf("the response status has been rewritten from %d to %d", w.status, statusCode)
 		w.status = statusCode
 	}
 }

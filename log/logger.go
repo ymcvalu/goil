@@ -24,8 +24,6 @@ type Logger struct {
 	level  int
 }
 
-var DefLogger = New(os.Stdin, "", LstdFlags, DebugLevel)
-
 func New(out io.Writer, prefix string, flag int, level int) *Logger {
 	if out == nil {
 		out = os.Stdin
@@ -90,8 +88,12 @@ func (l *Logger) SetPrefix(prefix string) {
 	l.mu.Unlock()
 }
 
-func (l *Logger) formatHeader(buf *[]byte, t time.Time, tag string, file string, line int) {
-	*buf = append(*buf, l.prefix...)
+func (l *Logger) formatHeader(buf *[]byte, prefix string, t time.Time, file string, line int) {
+	if prefix != "" {
+		*buf = append(*buf, prefix...)
+	} else {
+		*buf = append(*buf, l.prefix...)
+	}
 
 	if l.flag&(Ldate|Ltime|Lmicroseconds) != 0 {
 		if l.flag&LUTC != 0 {
@@ -129,8 +131,6 @@ func (l *Logger) formatHeader(buf *[]byte, t time.Time, tag string, file string,
 				}
 			}
 		}
-		*buf = append(*buf, tag...)
-		*buf = append(*buf, ' ')
 		*buf = append(*buf, file...)
 		*buf = append(*buf, ':')
 		itoa(buf, line, -1)
@@ -140,7 +140,7 @@ func (l *Logger) formatHeader(buf *[]byte, t time.Time, tag string, file string,
 
 const calldepth = 2
 
-func (l *Logger) write(calldepth int, tag, s string) error {
+func (l *Logger) write(calldepth int, prefix, s string) error {
 	now := time.Now()
 	var file string
 	var line int
@@ -157,7 +157,7 @@ func (l *Logger) write(calldepth int, tag, s string) error {
 	}
 
 	buf := make([]byte, 0)
-	l.formatHeader(&buf, now, tag, file, line)
+	l.formatHeader(&buf, prefix, now, file, line)
 	l.mu.RUnlock()
 	buf = append(buf, s...)
 	if len(s) == 0 || s[len(s)-1] != '\n' {
@@ -191,56 +191,56 @@ func (l *Logger) Infof(format string, msg ...interface{}) {
 	if l.level > InfoLevel {
 		return
 	}
-	l.write(calldepth, "[info]", fmt.Sprintf(format, msg...))
+	l.write(calldepth, "[info] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Info(msg ...interface{}) {
 	if l.level > InfoLevel {
 		return
 	}
-	l.write(calldepth, "[info]", fmt.Sprint(msg...))
+	l.write(calldepth, "[info] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Debugf(format string, msg ...interface{}) {
 	if l.level > DebugLevel {
 		return
 	}
-	l.write(calldepth, "[debug]", fmt.Sprintf(format, msg...))
+	l.write(calldepth, "[debug] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Debug(msg ...interface{}) {
 	if l.level > DebugLevel {
 		return
 	}
-	l.write(calldepth, "[debug]", fmt.Sprint(msg...))
+	l.write(calldepth, "[debug] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Warnf(format string, msg ...interface{}) {
 	if l.level > WarnLevel {
 		return
 	}
-	l.write(calldepth, "[warn]", fmt.Sprintf(format, msg...))
+	l.write(calldepth, "[warn] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Warn(msg ...interface{}) {
 	if l.level > WarnLevel {
 		return
 	}
-	l.write(calldepth, "[warn]", fmt.Sprint(msg...))
+	l.write(calldepth, "[warn] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Errorf(format string, msg ...interface{}) {
 	if l.level > ErrorLevel {
 		return
 	}
-	l.write(calldepth, "[error]", fmt.Sprintf(format, msg...))
+	l.write(calldepth, "[error] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Error(msg ...interface{}) {
 	if l.level > ErrorLevel {
 		return
 	}
-	l.write(calldepth, "[error]", fmt.Sprint(msg...))
+	l.write(calldepth, "[error] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Panicf(format string, msg ...interface{}) {
@@ -248,7 +248,7 @@ func (l *Logger) Panicf(format string, msg ...interface{}) {
 		return
 	}
 	message := fmt.Sprintf(format, msg...)
-	l.write(calldepth, "[panic]", message)
+	l.write(calldepth, "[panic] ", message)
 	panic(message)
 }
 
@@ -257,7 +257,7 @@ func (l *Logger) Panic(msg ...interface{}) {
 		return
 	}
 	message := fmt.Sprint(msg...)
-	l.write(calldepth, "[panic]", message)
+	l.write(calldepth, "[panic] ", message)
 	panic(message)
 }
 
@@ -266,7 +266,7 @@ func (l *Logger) Fatalf(format string, msg ...interface{}) {
 		return
 	}
 
-	l.write(calldepth, "[fatal]", fmt.Sprintf(format, msg...))
+	l.write(calldepth, "[fatal] ", fmt.Sprintf(format, msg...))
 	os.Exit(-1)
 }
 
@@ -275,7 +275,7 @@ func (l *Logger) Fatal(msg ...interface{}) {
 		return
 	}
 
-	l.write(calldepth, "[fatal]", fmt.Sprint(msg...))
+	l.write(calldepth, "[fatal] ", fmt.Sprint(msg...))
 	os.Exit(-1)
 }
 

@@ -536,7 +536,7 @@ func (root *node) adjustPriority() {
 /**
 打印Tree，深度优先遍历
 */
-func printTree(n *node, level int, pre string) {
+func WalkTree(n *node, level int, pre string) {
 	i := level
 	prefix := ""
 	for i > 0 {
@@ -545,7 +545,7 @@ func printTree(n *node, level int, pre string) {
 	}
 	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d  priority:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.priority, n.handlerChain != nil)
 	for child := n.children; child != nil; child = child.next {
-		printTree(child, level+1, pre)
+		WalkTree(child, level+1, pre)
 	}
 }
 

@@ -19,13 +19,13 @@ const (
 type signal struct{}
 
 type entry struct {
-	msg  string
-	time time.Time
-	file string
-	line int
-	flag int8
-	cb   chan signal
-	tag  string
+	msg    string
+	time   time.Time
+	file   string
+	line   int
+	flag   int8
+	cb     chan signal
+	prefix string
 }
 
 type AsyncLogger struct {
@@ -57,12 +57,12 @@ func NewAsync(out io.Writer, prefix string, flag, level, bs int) (l *AsyncLogger
 		},
 	}
 
-	go poll(l)
+	go l.poll()
 
 	return
 }
 
-func poll(l *AsyncLogger) {
+func (l *AsyncLogger) poll() {
 	for {
 		entry, ok := <-l.mq
 		if !ok {
@@ -70,7 +70,7 @@ func poll(l *AsyncLogger) {
 		}
 		buf := make([]byte, 0)
 		if entry.flag&nohead == 0 {
-			l.formatHeader(&buf, entry.tag, entry.time, entry.file, entry.line)
+			l.formatHeader(&buf, entry.prefix, entry.time, entry.file, entry.line)
 		}
 		buf = append(buf, entry.msg...)
 		if buf[len(buf)-1] != '\n' {
@@ -88,9 +88,11 @@ func poll(l *AsyncLogger) {
 	}
 }
 
-func (l *AsyncLogger) formatHeader(buf *[]byte, tag string, t time.Time, file string, line int) {
+func (l *AsyncLogger) formatHeader(buf *[]byte, prefix string, t time.Time, file string, line int) {
 
-	if l.prefix != "" {
+	if prefix != "" {
+		*buf = append(*buf, prefix...)
+	} else {
 		*buf = append(*buf, l.prefix...)
 	}
 
@@ -131,8 +133,6 @@ func (l *AsyncLogger) formatHeader(buf *[]byte, tag string, t time.Time, file st
 			}
 		}
 
-		*buf = append(*buf, tag...)
-		*buf = append(*buf, ' ')
 		*buf = append(*buf, file...)
 		*buf = append(*buf, ':')
 		itoa(buf, line, -1)
@@ -164,7 +164,7 @@ func (l *AsyncLogger) Infof(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[info]"
+	entry.prefix = "[info] "
 	entry.init(l)
 	entry.msg = fmt.Sprintf(format, msg...)
 	l.mq <- entry
@@ -175,7 +175,7 @@ func (l *AsyncLogger) Info(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[info]"
+	entry.prefix = "[info] "
 	entry.init(l)
 	entry.msg = fmt.Sprint(msg...)
 	l.mq <- entry
@@ -186,7 +186,7 @@ func (l *AsyncLogger) Debugf(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[debug]"
+	entry.prefix = "[debug] "
 	entry.init(l)
 	entry.msg = fmt.Sprintf(format, msg...)
 	l.mq <- entry
@@ -197,7 +197,7 @@ func (l *AsyncLogger) Debug(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[debug]"
+	entry.prefix = "[debug] "
 	entry.init(l)
 	entry.msg = fmt.Sprint(msg...)
 	l.mq <- entry
@@ -208,7 +208,7 @@ func (l *AsyncLogger) Warnf(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[warn]"
+	entry.prefix = "[warn] "
 	entry.init(l)
 	entry.msg = fmt.Sprintf(format, msg...)
 	l.mq <- entry
@@ -219,7 +219,7 @@ func (l *AsyncLogger) Warn(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[warn]"
+	entry.prefix = "[warn] "
 	entry.init(l)
 	entry.msg = fmt.Sprint(msg...)
 	l.mq <- entry
@@ -230,7 +230,7 @@ func (l *AsyncLogger) Errorf(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[error]"
+	entry.prefix = "[error] "
 	entry.init(l)
 	entry.msg = fmt.Sprintf(format, msg...)
 	l.mq <- entry
@@ -241,7 +241,7 @@ func (l *AsyncLogger) Error(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[error]"
+	entry.prefix = "[error] "
 	entry.init(l)
 	entry.msg = fmt.Sprint(msg...)
 	l.mq <- entry
@@ -252,7 +252,7 @@ func (l *AsyncLogger) Panicf(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[panic]"
+	entry.prefix = "[panic] "
 	entry.init(l)
 	m := fmt.Sprintf(format, msg...)
 	entry.msg = m
@@ -265,7 +265,7 @@ func (l *AsyncLogger) Panic(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[panic]"
+	entry.prefix = "[panic] "
 	entry.init(l)
 	m := fmt.Sprint(msg...)
 	entry.msg = m
@@ -278,7 +278,7 @@ func (l *AsyncLogger) Fatalf(format string, msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[fatal]"
+	entry.prefix = "[fatal] "
 	entry.init(l)
 	entry.msg = fmt.Sprintf(format, msg...)
 	entry.flag |= wait
@@ -294,7 +294,7 @@ func (l *AsyncLogger) Fatal(msg ...interface{}) {
 		return
 	}
 	entry := l.getEntry()
-	entry.tag = "[fatal]"
+	entry.prefix = "[fatal] "
 	entry.init(l)
 	entry.msg = fmt.Sprint(msg...)
 	entry.flag |= wait

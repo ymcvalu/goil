@@ -5,15 +5,6 @@ import (
 	"sync"
 )
 
-var banner = `
-    __________       
-   / ________/         ______
-  / / _____  _______  /__/  /  
- / / /____ \/  ___  \/  /  /   
-/ /______/ /  /__/  /  /  /__ 
-\_________/\_______/\_/\____/  by can
-`
-
 type App struct {
 	*router
 	contextPool sync.Pool
@@ -21,6 +12,12 @@ type App struct {
 }
 
 func New() *App {
+	echoBanner()
+	runmode := RunMode()
+	logger.Printf("[Goil] the app is running in %s mode", runmode)
+	if runmode == DBG {
+		logger.Printf("[Goil] you can change the run mode by setting the env: export %s=%s", ENV_KEY, PRD)
+	}
 	return &App{
 		router: newRouter(),
 		contextPool: sync.Pool{
@@ -58,8 +55,10 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ctx.Next()
 
 		//detach
-		ctx.Request = nil
 		ctx.values = nil
+		ctx.params = nil
+		ctx.Request = nil
+		ctx.chain = nil
 		ctx.Logger = nil
 		resp := ctx.Response
 		ctx.Response = nil
@@ -75,10 +74,25 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) Run(addr string) error {
-	app.echoBanner()
+	starting()
+	logger.Printf("[Goil] Listening and serving HTTP on %s\n", addr)
 	return http.ListenAndServe(addr, app)
 }
 
-func (app *App) echoBanner() {
-	logger.Print(banner)
+const banner = `` +
+	`     __________                        ` + "\n" +
+	`    / ________/         ______         ` + "\n" +
+	`   / / _____  _______  /__/  /         ` + "\n" +
+	`  / / /____ \/  ___  \/  /  /          ` + "\n" +
+	` / /______/ /  /__/  /  /  /__         ` + "\n" +
+	` \_________/\_______/\_/\____/  by can ` + "\n" +
+	`                                       `
+
+func echoBanner() {
+	var bannerColor, resetColor string
+	if logger.IsTTY() {
+		bannerColor = red
+		resetColor = reset
+	}
+	logger.Printf("%s%s%s", bannerColor, banner, resetColor)
 }

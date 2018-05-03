@@ -1,25 +1,5 @@
 package log
 
-const (
-	Ldate = 1 << iota
-	Ltime
-	Lmicroseconds
-	Llongfile
-	Lshortfile
-	LUTC
-	LstdFlags = Ldate | Ltime | Lshortfile
-)
-
-const (
-	DebugLevel = iota
-	InfoLevel
-	WarnLevel
-	ErrorLevel
-	PanicLevel
-	FatalLevel
-	_max_
-)
-
 func itoa(buf *[]byte, i int, wid int) {
 	var b [20]byte
 	bp := len(b) - 1

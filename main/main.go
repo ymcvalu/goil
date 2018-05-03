@@ -24,6 +24,7 @@ type Params struct {
 func main() {
 	session.EnableRdsSession()
 	app := goil.New()
+	app.Use(goil.PrintRequestInfo())
 	app.GET("/", func(c *goil.Context) {
 		c.String("hello,goil!")
 	})
@@ -40,7 +41,7 @@ func main() {
 		})
 	})
 	app.GET("/securyJson", func(c *goil.Context) {
-		c.SecuryJSON(map[string]string{
+		c.SecureJSON(map[string]string{
 			"name": "Jim",
 			"age":  "19",
 		})
@@ -73,12 +74,18 @@ func main() {
 		} else {
 			c.String("sess not set")
 		}
-
+		c.Info("log")
 	})
 	app.POST("/session/:sess", session.UseSession(), func(c *goil.Context) {
 		val, _ := c.Param("sess")
 		c.Session().Set("sess", val)
 		c.String("set")
+		c.String(c.Query("q"))
 	})
+	app.PUT("/rewrite_code", func(c *goil.Context) {
+		c.Status(404)
+	})
+
 	app.Run(":8081")
+
 }

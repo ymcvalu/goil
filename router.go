@@ -128,19 +128,13 @@ func (g *group) Use(handlers ...HandlerFunc) IRouter {
 }
 
 func (r *router) add(method string, path string, chain HandlerChain) {
-	if len(path) == 0 || path[0] != '/' {
-		panic(fmt.Sprintf("path must start with '/'"))
-	}
 
-	if chain == nil {
-		panic(fmt.Sprintf("handler nil:%s", path))
-	}
+	assert1(len(path) > 0 && path[0] == '/', fmt.Sprintf("path must start with '/'"))
+	assert1(chain != nil, fmt.Sprintf("the handler of %s is nil", path))
 
 	tree, exists := r.findTree(method)
 
-	if !exists {
-		panic(fmt.Sprintf("unsupported method:%s", method))
-	}
+	assert1(exists, fmt.Sprintf("unsupported method:%s", method))
 
 	if tree.isNil() {
 		tree.node = &node{
@@ -148,7 +142,11 @@ func (r *router) add(method string, path string, chain HandlerChain) {
 			typ:     static,
 		}
 	}
-
+	if RunMode() == DBG {
+		handlerNum := len(chain)
+		handlerName := funcName(chain[handlerNum-1])
+		printRouteInfo(method, path, handlerName, handlerNum)
+	}
 	tree.addNode(path, chain)
 }
 
@@ -242,4 +240,13 @@ func (g *group) ANY(path string, handlers ...HandlerFunc) IRouter {
 	}
 
 	return g
+}
+
+func printRouteInfo(method, path, handlerName string, handlerNum int) {
+	var methodColor, resetColor string
+	if logger.IsTTY() {
+		methodColor = colorForMethod(method)
+		resetColor = reset
+	}
+	logger.Printf("[route] %s %-6s%s %-25s ==> %s (%d handlers)", methodColor, method, resetColor, path, handlerName, handlerNum)
 }

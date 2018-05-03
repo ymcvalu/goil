@@ -1,10 +1,6 @@
 package session
 
-import (
-	"goil"
-)
-
-type Session = goil.SessionEntry
+import "goil"
 
 //c like?less *
 type Void = interface{}
@@ -28,3 +24,5 @@ type SessionManager interface {
 	SessionCount() int
 	SessionGC()
 }
+
+type Session = goil.SessionEntry
