@@ -354,7 +354,7 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			if exist && len(pVal) == 0 {
 				continue
 			}
-			if fTyp.Type.Kind() == reflect.Slice {
+			if dt.Kind() == reflect.Slice {
 				err = bindSlice(pVal, dv, dt)
 			} else {
 
