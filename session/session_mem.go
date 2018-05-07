@@ -2,7 +2,6 @@ package session
 
 import (
 	"errors"
-	"goil"
 	. "goil/reflect"
 	"sync"
 	"time"
@@ -16,7 +15,7 @@ type SessionMem struct {
 	sessionID string
 }
 
-var _ goil.SessionEntry = new(SessionMem)
+var _ Session = new(SessionMem)
 
 func (s *SessionMem) Get(key Any) Any {
 	s.mux.RLock()

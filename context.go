@@ -2,26 +2,32 @@ package goil
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 type Context struct {
 	Logger
-	Request  *http.Request
+	Request *http.Request
+	//the lifecycle of the field is only in a request
+	//ban to access it outer the request
+	Session  Session
 	Response Response
 	chain    HandlerChain
 	idx      int
 	params   Params
-	errCode  int
-	err      error
-	values   map[string]interface{}
+	//ErrMsg and ErrCode is used pass err info among middlewares
+	ErrMsg  error
+	ErrCode int
+	values  map[interface{}]interface{}
 }
 
 //执行 middleware chain 的下一个节点
@@ -29,14 +35,16 @@ type Context struct {
 func (ctx *Context) Next() {
 	chain := ctx.chain
 	if ctx.chain == nil || ctx.idx >= len(chain) {
-		ctx.err = errors.New("no handler")
+		ctx.ErrMsg = NoHandlers
+		ctx.ErrCode = Code_NoHandlers
 		return
 	}
-	handler := chain[ctx.idx]
-	ctx.idx++
 
-	handler(ctx)
-	return
+	for ctx.idx < len(chain) {
+		handler := chain[ctx.idx]
+		ctx.idx++
+		handler(ctx)
+	}
 }
 
 //获取 middleware chain 的下一个节点 handler
@@ -113,8 +121,8 @@ func (c *Context) CloseNotify() <-chan bool {
 	return c.Response.CloseNotify()
 }
 
-func (c *Context) Param(key string) (value string, exist bool) {
-	value, exist = c.params[key]
+func (c *Context) Param(key string) (value string) {
+	value = c.params[key]
 	return
 }
 
@@ -226,57 +234,69 @@ func (c *Context) Bind(iface interface{}) error {
 }
 
 //rewrite the response code
-func (c *Context) Status(code int) {
-	c.Response.WriteHeader(code)
+func (c *Context) Status(status int) {
+	c.Response.SetStatus(status)
+}
+
+func (c *Context) ContentType(contentType string) {
+	c.Response.SetHeader(CONTENT_TYPE, contentType)
+}
+
+func (c *Context) Html(name string, data interface{}) {
+	vm := ViewModel{
+		Name:  name,
+		Model: data,
+	}
+	c.Render(htmlRender, &vm)
 }
 
 //write the raw text
-func (c *Context) String(str string) {
+func (c *Context) Text(str string) {
 	c.Body(MIME_TEXT, []byte(str))
 }
 
 //wirte json
-func (c *Context) JSON(_json interface{}) {
-	byts, err := json.Marshal(_json)
-	if err != nil {
-		panic(err)
-	}
-	c.Body(MIME_JSON, byts)
+func (c *Context) JSON(data interface{}) {
+	c.Render(jsonRender, data)
 }
 
-//write indent json
-func (c *Context) IndentJSON(_json interface{}) {
-	byts, err := json.MarshalIndent(_json, "", " ")
-	if err != nil {
-		panic(err)
-	}
-	c.Body(MIME_JSON, byts)
+//wirte json with a prefix
+func (c *Context) SecureJSON(data interface{}) {
+	c.Render(secJsonRender, data)
 }
 
-//wirte json wite a prefix
-func (c *Context) SecureJSON(_json interface{}) {
-	byts, err := json.Marshal(_json)
-	if err != nil {
-		panic(err)
-	}
-	l := len(secure_json_prefix) + len(byts)
-	buf := make([]byte, l)
-	copy(buf[:len(secure_json_prefix)], []byte(secure_json_prefix))
-	copy(buf[len(secure_json_prefix):], byts)
-	c.Body(MIME_JSON, buf)
-}
-
-//write contentType and body
-func (c *Context) Body(contentType string, body []byte) {
-	c.Response.SetHeader(CONTENT_TYPE, contentType)
-	if _, err := c.Response.Write(body); err != nil {
-		panic(err)
-	}
+//write xml
+func (c *Context) Xml(data interface{}) {
+	c.Render(xmlRender, data)
 }
 
 //Render the render
 func (c *Context) Render(r Render, content interface{}) {
-	c.Stream(r.ContentType(), r.Render(content), true)
+	contentType := r.ContentType()
+	//TODO:check the content-type???
+	c.ContentType(contentType)
+	err := r.Render(c.Response, content)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (c *Context) File(filepath string) {
+	http.ServeFile(c.Response, c.Request, filepath)
+}
+
+func (c *Context) IndentJSON(content interface{}) {
+	byts, err := json.MarshalIndent(content, "", " ")
+	if err != nil {
+		panic(err)
+	}
+	c.Body(MIME_JSON, byts)
+}
+
+//write contentType and body
+func (c *Context) Body(contentType string, body []byte) {
+	r := bytes.NewReader(body)
+	c.Stream(contentType, r, false)
 }
 
 //write content from reader
@@ -288,28 +308,12 @@ func (c *Context) Stream(contentType string, r io.Reader, autoClose bool) {
 		}
 	}
 	c.Response.SetHeader(CONTENT_TYPE, contentType)
-	buf := make([]byte, 512)
-	n := 0
-	var err error
-	for {
-		n, err = r.Read(buf)
-		if err != nil && n > 0 {
-			if _, e := c.Response.Write(buf[:n]); err != nil {
-				panic(e)
-			}
-		} else if err != nil {
-			panic(err)
-		} else {
-			break
-		}
+	_, err := io.Copy(c.Response, r)
+	if err != nil {
+		panic(err)
 	}
-
 }
 
-// ClientIP implements a best effort algorithm to return the real client IP, it parses
-// X-Real-IP and X-Forwarded-For in order to work properly with reverse-proxies such us: nginx or haproxy.
-// Use X-Forwarded-For before X-Real-Ip as nginx uses X-Real-Ip with the proxy's IP.
-//TODO:add reverse proxy toggle
 func (c *Context) ClientIP() string {
 
 	clientIP := c.Headers().Get("X-Forwarded-For")
@@ -357,14 +361,38 @@ func (c *Context) Del(key string) {
 	delete(c.values, key)
 }
 
-//get session
-func (c *Context) Session() SessionEntry {
-	val, ok := c.values[sessionTag]
-	if !ok {
-		return nil
-	}
-	if sess, ok := val.(SessionEntry); ok {
-		return sess
-	}
+func (c *Context) clear() {
+	c.Response = nil
+	c.values = nil
+	c.params = nil
+	c.Request = nil
+	c.chain = nil
+	c.Logger = nil
+	c.Session = nil
+	c.ErrMsg = nil
+	c.ErrCode = 0
+}
+
+//assert implements context.Context
+var _ context.Context = new(Context)
+
+func (c *Context) Redirect(code int, location string) {
+	c.SetHeader("location", location)
+	c.Response.WriteHeader(code)
+}
+
+func (c *Context) Deadline() (deadline time.Time, ok bool) {
+	return
+}
+
+func (c *Context) Done() <-chan struct{} {
 	return nil
+}
+
+func (c *Context) Err() error {
+	return c.ErrMsg
+}
+
+func (c *Context) Value(key interface{}) interface{} {
+	return c.values[key]
 }

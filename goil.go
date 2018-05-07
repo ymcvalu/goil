@@ -40,43 +40,63 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	method := r.Method
 	chain, params, tsr := app.route(method, path)
-	//
 	if chain != nil {
+		ctx := app.getCtx(w, r)
 		//init the context
-		ctx := app.contextPool.Get().(*Context)
-		ctx.Logger = logger
 		ctx.chain = chain
-		ctx.idx = 0
-		ctx.Response = app.respPool.Get().(Response)
-		ctx.Response.reset(w)
-		ctx.Request = r
 		ctx.params = params
-		ctx.values = make(map[string]interface{})
+		ctx.values = make(map[interface{}]interface{})
 		ctx.Next()
-
 		//detach
-		ctx.values = nil
-		ctx.params = nil
-		ctx.Request = nil
-		ctx.chain = nil
-		ctx.Logger = nil
-		resp := ctx.Response
-		ctx.Response = nil
-		app.contextPool.Put(ctx)
-		app.respPool.Put(resp.clear())
-		resp = nil
+		app.putCtx(ctx)
 		return
 	}
 	//
 	if tsr {
 
 	}
+	//handle the 404 not found
+	ctx := app.getCtx(w, r)
+	//use the global middleware,include print request
+	ctx.chain = append(ctx.chain, app.middlewares...)
+	ctx.chain = append(ctx.chain, NoHandler)
+	ctx.Next()
+	app.putCtx(ctx)
 }
 
-func (app *App) Run(addr string) error {
-	starting()
+func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {
+	ctx := app.contextPool.Get().(*Context)
+	ctx.Response = app.respPool.Get().(Response)
+	ctx.Response.reset(w)
+	ctx.Request = r
+	ctx.idx = 0
+	ctx.Logger = logger
+
+	return ctx
+}
+
+func (app *App) putCtx(ctx *Context) {
+	resp := ctx.Response
+	if _, ok := resp.(*response); ok {
+		app.respPool.Put(resp.clear())
+	}
+	resp = nil
+	ctx.clear()
+	app.contextPool.Put(ctx)
+}
+
+func (app *App) Run(addr string) (err error) {
+	guard.run()
 	logger.Printf("[Goil] Listening and serving HTTP on %s\n", addr)
-	return http.ListenAndServe(addr, app)
+	err = http.ListenAndServe(addr, app)
+	return
+}
+
+func (app *App) RunTLS(addr string, certFile, keyFile string) (err error) {
+	guard.run()
+	logger.Printf("[Goil] Listening and serving HTTPS on %s\n", addr)
+	err = http.ListenAndServeTLS(addr, certFile, keyFile, app)
+	return
 }
 
 const banner = `` +
@@ -91,8 +111,14 @@ const banner = `` +
 func echoBanner() {
 	var bannerColor, resetColor string
 	if logger.IsTTY() {
-		bannerColor = red
-		resetColor = reset
+		bannerColor = redBkg
+		resetColor = resetClr
 	}
 	logger.Printf("%s%s%s", bannerColor, banner, resetColor)
+}
+
+func Default() *App {
+	app := New()
+	app.Use(Recover(), PrintRequestInfo())
+	return app
 }

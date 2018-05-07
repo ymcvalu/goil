@@ -9,6 +9,8 @@ package goil
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 )
 
 //HTTP METHOD TYPE
@@ -131,23 +133,23 @@ func (r *router) add(method string, path string, chain HandlerChain) {
 
 	assert1(len(path) > 0 && path[0] == '/', fmt.Sprintf("path must start with '/'"))
 	assert1(chain != nil, fmt.Sprintf("the handler of %s is nil", path))
-
 	tree, exists := r.findTree(method)
-
 	assert1(exists, fmt.Sprintf("unsupported method:%s", method))
-
-	if tree.isNil() {
-		tree.node = &node{
-			pattern: "/",
-			typ:     static,
+	guard.execSafely(func() {
+		if tree.isNil() {
+			tree.node = &node{
+				pattern: "/",
+				typ:     static,
+			}
 		}
-	}
-	if RunMode() == DBG {
-		handlerNum := len(chain)
-		handlerName := funcName(chain[handlerNum-1])
-		printRouteInfo(method, path, handlerName, handlerNum)
-	}
-	tree.addNode(path, chain)
+
+		if RunMode() == DBG {
+			handlerNum := len(chain)
+			handlerName := funcName(chain[handlerNum-1])
+			printRouteInfo(method, path, handlerName, handlerNum)
+		}
+		tree.addNode(path, chain)
+	})
 }
 
 func (g *group) ADD(method string, path string, handlers ...HandlerFunc) IRouter {
@@ -230,6 +232,25 @@ func (g *group) TRACE(path string, handlers ...HandlerFunc) IRouter {
 	return g
 }
 
+func (g *group) Static(path string, filepath string) {
+	g.StaticFS(path, http.Dir(filepath))
+}
+
+func (g *group) StaticFS(path string, fs http.FileSystem) IRouter {
+	prePath := joinPath(g.base, path)
+	if strings.Contains(prePath, ":") || strings.Contains(prePath, "*") {
+		panic("the path of static resource can't contain path params")
+	}
+	fullPath := joinPath(prePath, "/*filepath")
+	rawHandler := http.StripPrefix(prePath, http.FileServer(fs))
+	handler := func(c *Context) {
+		rawHandler.ServeHTTP(c.Response, c.Request)
+	}
+	g.GET(fullPath, handler)
+	g.HEAD(fullPath, handler)
+	return g
+}
+
 func (g *group) ANY(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
@@ -246,7 +267,7 @@ func printRouteInfo(method, path, handlerName string, handlerNum int) {
 	var methodColor, resetColor string
 	if logger.IsTTY() {
 		methodColor = colorForMethod(method)
-		resetColor = reset
+		resetColor = resetClr
 	}
 	logger.Printf("[route] %s %-6s%s %-25s ==> %s (%d handlers)", methodColor, method, resetColor, path, handlerName, handlerNum)
 }

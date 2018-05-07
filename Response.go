@@ -20,6 +20,7 @@ type Response interface {
 	reset(writer http.ResponseWriter)
 	clear() interface{}
 	SetHeader(key, value string)
+	SetStatus(int)
 }
 
 //assert that response implements Response
@@ -64,8 +65,8 @@ func (w *response) SetHeader(key, value string) {
 // a response header to the client
 func (w *response) Write(bytes []byte) (n int, err error) {
 	if w.size == nowriten {
-		w.writer.WriteHeader(w.status)
 		w.size = 0
+		w.writer.WriteHeader(w.status)
 	}
 	if bytes != nil && len(bytes) > 0 && bodyAllowedForStatus(w.status) {
 		n, err = w.writer.Write(bytes)
@@ -77,8 +78,15 @@ func (w *response) Write(bytes []byte) (n int, err error) {
 //WriteHeader set the response status code
 func (w *response) WriteHeader(statusCode int) {
 	if w.size == nowriten {
-		logger.Debugf("the response status has been rewritten from %d to %d", w.status, statusCode)
 		w.status = statusCode
+		w.size = 0
+		w.writer.WriteHeader(statusCode)
+	}
+}
+
+func (w *response) SetStatus(status int) {
+	if w.size == nowriten {
+		w.status = status
 	}
 }
 

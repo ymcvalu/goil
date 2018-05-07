@@ -185,12 +185,10 @@ var validateFunc = map[string]Validator{
 
 var NoValidatorExists = errors.New("no validator exists")
 
-func RegisterValidator(name string, validator Validator) bool {
-	if _, conflict := validateFunc[name]; conflict {
-		return false
-	}
-	validateFunc[name] = validator
-	return true
+func RegisterValidator(name string, validator Validator) {
+	guard.execSafely(func() {
+		validateFunc[name] = validator
+	})
 }
 
 func validateField(tag string, val reflect.Value, rTyp reflect.StructField) (bool, error) {

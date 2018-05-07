@@ -16,13 +16,5 @@ type SessionCache interface {
 	Put(entry Session)
 }
 
-type SessionManager interface {
-	SessionGet(string) Session
-	SessionPut(Session)
-	SessionExists(string) bool
-	SessionDestroy(string)
-	SessionCount() int
-	SessionGC()
-}
-
-type Session = goil.SessionEntry
+type Session = goil.Session
+type SessionManager = goil.SessionManager

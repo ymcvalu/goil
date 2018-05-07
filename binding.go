@@ -2,6 +2,7 @@ package goil
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -12,196 +13,155 @@ import (
 	"reflect"
 )
 
-func bindString(src string, dest reflect.Value, fTyp reflect.StructField) error {
-	tag := fTyp.Tag
+func bindString(src string, dv reflect.Value, dt reflect.Type, tag reflect.StructTag) error {
 	conv := tag.Get(CONVERT)
-	if convFunc, exists := convertFunc[conv]; exists {
-		val, err := convFunc(src, dest.Type())
+	if convFunc, exists := convertFunc[conv]; conv != "" && exists {
+		if !dv.CanSet() {
+			return nil
+		}
+		val, err := convFunc(src, dv.Type())
 		if err != nil {
 			return err
 		}
-		if dest.CanSet() {
-			dest.Set(valueOf(val))
-		}
+
+		dv.Set(valueOf(val))
+
 		return nil
 	}
 	var v interface{}
 	var err error
-outer:
-	switch dest.Type().Kind() {
+
+	switch dt.Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
 		conv = "_a2i"
-		v, err = convertFunc[conv](src, dest.Type())
+		v, err = convertFunc[conv](src, dt)
 		if err != nil {
-			break outer
+			break
 		}
-		dest.SetInt(v.(int64))
+		dv.SetInt(v.(int64))
 	case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		conv = "_a2u"
-		v, err = convertFunc[conv](src, dest.Type())
+		v, err = convertFunc[conv](src, dt)
 		if err != nil {
-			break outer
+			break
 		}
-		dest.SetUint(v.(uint64))
+		dv.SetUint(v.(uint64))
 	case reflect.Bool:
 		conv = "_a2b"
-		v, err = convertFunc[conv](src, dest.Type())
+		v, err = convertFunc[conv](src, dt)
 		if err != nil {
-			break outer
+			break
 		}
-		dest.SetBool(v.(bool))
+		dv.SetBool(v.(bool))
 	case reflect.Float32, reflect.Float64:
 		conv = "_a2f"
-		v, err = convertFunc[conv](src, dest.Type())
+		v, err = convertFunc[conv](src, dt)
 		if err != nil {
-			break outer
+			break
 		}
-		dest.SetFloat(v.(float64))
+		dv.SetFloat(v.(float64))
 	case reflect.String:
-		dest.SetString(src)
-	case reflect.Ptr:
-		elemType := dest.Type().Elem()
-		elemVal := reflect.New(elemType)
-		dest.Set(elemVal)
-		elemVal = elemVal.Elem()
-		switch elemType.Kind() {
-		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Int:
-			conv = "_a2i"
-			v, err = convertFunc[conv](src, dest.Type())
-			if err != nil {
-				break outer
-			}
-			elemVal.SetInt(v.(int64))
-		case reflect.Uint, reflect.Uintptr, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			conv = "_a2u"
-			v, err = convertFunc[conv](src, dest.Type())
-			if err != nil {
-				break outer
-			}
-			elemVal.SetUint(v.(uint64))
-		case reflect.Bool:
-			conv = "_a2b"
-			v, err = convertFunc[conv](src, dest.Type())
-			if err != nil {
-				break outer
-			}
-			elemVal.SetBool(v.(bool))
-		case reflect.Float32, reflect.Float64:
-			conv = "_a2f"
-			v, err = convertFunc[conv](src, dest.Type())
-			if err != nil {
-				break outer
-			}
-			elemVal.SetFloat(v.(float64))
-		case reflect.String:
-			elemVal.SetString(src)
-			// default:
-			// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
-		}
-		// default:
-		// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
+		dv.SetString(src)
 	}
 	return err
-
 }
 
 type File struct {
 	FileName string
 	Size     int64
-	File     os.File
+	File     multipart.File
 }
 
-func bindFile(fh *multipart.FileHeader, dest reflect.Value, fTyp reflect.StructField) error {
-	if !dest.CanSet() {
+func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error {
+	if !dv.CanSet() {
 		return nil
 	}
-	dType := fTyp.Type
-	if dType.Kind() == reflect.Ptr {
-		elemTyp := dType.Elem()
-		elemVal := reflect.New(elemTyp)
-		dest.Set(elemVal)
-		dest = elemVal
-	}
-	switch d := dest.Interface().(type) {
+
+	switch dv.Interface().(type) {
 	//pointer:assign directly
 	case *int64:
 		_size := fh.Size
-		*d = _size
+
+		dv.Set(valueOf(&_size))
 	case *os.File:
 		fd, err := fh.Open()
 		if err != nil {
 			return fmt.Errorf("open upload file:%s", err)
 		}
-		*d = *fd.(*os.File)
+		if file, ok := fd.(*os.File); ok {
+			dv.Set(valueOf(file))
+		} else {
+			logger.Warnf("for reading the uploaded file: %s,please use the type %s replace %s", fh.Filename, "multipart.File", "*os.File")
+		}
+
 	case *File:
 		fd, err := fh.Open()
 		if err != nil {
 			return fmt.Errorf("open upload file:%s", err)
 		}
-		*d = File{
+
+		file := &File{
 			FileName: fh.Filename,
 			Size:     fh.Size,
-			File:     *fd.(*os.File),
+			File:     fd,
 		}
+		dv.Set(valueOf(file))
 
+	case multipart.File:
+		file, err := fh.Open()
+		if err != nil {
+			return fmt.Errorf("open upload file:%s", err)
+		}
+		if f, ok := file.(multipart.File); ok {
+			dv.Set(valueOf(f))
+		}
 	case *multipart.FileHeader:
-		*d = *fh
+		dv.Set(valueOf(fh))
 
 	case *string:
-		*d = fh.Filename
+		dv.Set(valueOf(&fh.Filename))
 
 	//need to set dest
 	case int64:
-		dest.SetInt(fh.Size)
-
+		dv.SetInt(fh.Size)
 	case os.File:
 		fd, err := fh.Open()
 		if err != nil {
 			return fmt.Errorf("open upload file:%s", err)
 		}
+		if file, ok := fd.(*os.File); ok {
+			dv.Set(valueOf(file).Elem())
+		} else {
+			logger.Warnf("for reading the uploaded file: %s,please use the type %s replace %s", fh.Filename, "multipart.File", "os.File")
+		}
 
-		dest.Set(valueOf(fd.(*os.File)).Elem())
 	case File:
 		fd, err := fh.Open()
 		if err != nil {
 			return fmt.Errorf("open upload file:%s", err)
 		}
+
 		ptr := &File{
 			FileName: fh.Filename,
 			Size:     fh.Size,
-			File:     *fd.(*os.File),
+			File:     fd,
 		}
-		dest.Set(valueOf(ptr).Elem())
-
-	case multipart.File:
-		fd, err := fh.Open()
-		if err != nil {
-			return fmt.Errorf("open upload file:%s", err)
-		}
-		dest.Set(valueOf(&fd).Elem())
-
-	case multipart.FileHeader:
-		dest.Set(valueOf(&fh).Elem())
+		dv.Set(valueOf(ptr).Elem())
 
 	case string:
-		dest.Set(valueOf(&fh.Filename).Elem())
+		dv.Set(valueOf(&fh.Filename).Elem())
 
-		//default:
-		// return fmt.Errorf("bind file:unsupport type")
 	}
 
 	return nil
 }
 
-func bindSlice(src []string, dest reflect.Value, fTyp reflect.StructField) error {
-	elemType := fTyp.Type.Elem()
+func bindSlice(src []string, dv reflect.Value, dt reflect.Type) error {
+	elemType := dt.Elem()
 	switch elemType.Kind() {
 	case reflect.String:
-		dest.Set(valueOf(src))
-		// default:
-		// 	return fmt.Errorf("unsupport type for binding params %s to %s", src, fTyp.Name)
+		dv.Set(valueOf(src))
 	}
-
 	return nil
 }
 
@@ -212,6 +172,25 @@ const (
 	FORM      = "form"
 	FILE      = "file"
 )
+
+func dereference(dv reflect.Value, dt reflect.Type) (reflect.Value, reflect.Type) {
+	kind := dt.Kind()
+	for kind == reflect.Ptr {
+		if dv.IsNil() {
+			elemTyp := dt.Elem()
+			elemVal := reflect.New(elemTyp)
+			dv.Set(elemVal)
+			dv = elemVal.Elem()
+			dt = elemTyp
+			kind = elemTyp.Kind()
+		} else {
+			dv = dv.Elem()
+			dt = dt.Elem()
+			kind = dt.Kind()
+		}
+	}
+	return dv, dt
+}
 
 func bindPathParams(params Params, iface interface{}) (err error) {
 	if len(params) == 0 {
@@ -235,11 +214,14 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 			continue
 		}
 		fTyp := typ.Field(i)
+		dv := fVal
+		dt := fTyp.Type
+		dv, dt = dereference(dv, dt)
 
 		//To support the embeded struct
-		if fTyp.Type.Kind() == reflect.Struct {
+		if dt.Kind() == reflect.Struct {
 			//need the pointer type interface
-			bindPathParams(params, fVal.Addr().Interface())
+			bindPathParams(params, dv.Addr().Interface())
 			continue
 		}
 
@@ -250,7 +232,7 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 			continue
 		}
 
-		err = bindString(pVal, fVal, fTyp)
+		err = bindString(pVal, dv, dt, fTyp.Tag)
 		if err != nil {
 			return
 		}
@@ -281,8 +263,12 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 			continue
 		}
 		fTyp := typ.Field(i)
-		if fTyp.Type.Kind() == reflect.Struct {
-			bindQueryParams(request, fVal.Addr().Interface())
+		dv := fVal
+		dt := fTyp.Type
+		dv, dt = dereference(dv, dt)
+
+		if dt.Kind() == reflect.Struct {
+			bindQueryParams(request, dv.Addr().Interface())
 			continue
 		}
 		tag := fTyp.Tag
@@ -292,10 +278,10 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 			continue
 		}
 
-		if fTyp.Type.Kind() == reflect.Slice {
-			err = bindSlice(pVal, fVal, fTyp)
+		if dt.Kind() == reflect.Slice {
+			err = bindSlice(pVal, dv, dt)
 		} else {
-			err = bindString(pVal[0], fVal, fTyp)
+			err = bindString(pVal[0], dv, dt, fTyp.Tag)
 		}
 		if err != nil {
 			return
@@ -315,7 +301,7 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	if contentType != "" {
 		ct, _, err := mime.ParseMediaType(contentType)
 		if ct == MIME_MULT_POST && err == nil {
-			err = req.ParseMultipartForm(0)
+			err = req.ParseMultipartForm(DEFAULT_SIZE)
 			if err != nil && err != http.ErrNotMultipart {
 				return err
 			}
@@ -337,32 +323,45 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			continue
 		}
 		fTyp := typ.Field(i)
-		if fTyp.Type.Kind() == reflect.Struct {
-			bindFormParams(req, fVal.Addr().Interface())
+
+		dv := fVal
+		dt := fTyp.Type
+		tag := fTyp.Tag
+		fileKey := tag.Get(FILE)
+
+		//read the file firstly
+		if fileKey != "" {
+			if pVal, exist := req.MultipartForm.File[fileKey]; exist && len(pVal) > 0 {
+				err = bindFile(pVal[0], dv, dt)
+				if err != nil {
+					return
+				}
+			}
 			continue
 		}
 
-		tag := fTyp.Tag
-		if key := tag.Get(FORM); key != "" {
-			pVal, exist := req.PostForm[key]
+		dv, dt = dereference(dv, dt)
+
+		if dt.Kind() == reflect.Struct {
+			//support the nested struct
+			bindFormParams(req, dv.Addr().Interface())
+			continue
+		}
+
+		formKey := tag.Get(FORM)
+		if formKey != "" {
+			pVal, exist := req.PostForm[formKey]
 			if exist && len(pVal) == 0 {
 				continue
 			}
 			if fTyp.Type.Kind() == reflect.Slice {
-				err = bindSlice(pVal, fVal, fTyp)
+				err = bindSlice(pVal, dv, dt)
 			} else {
 
-				err = bindString(pVal[0], fVal, fTyp)
+				err = bindString(pVal[0], dv, dt, fTyp.Tag)
 			}
 			if err != nil {
 				return
-			}
-		} else if key = tag.Get(FILE); key != "" {
-			if pVal, exist := req.MultipartForm.File[key]; exist && len(pVal) > 0 {
-				err = bindFile(pVal[0], fVal, fTyp)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -380,29 +379,30 @@ func bindJSON(req *http.Request, iface interface{}) (err error) {
 	return
 }
 
-//change the params to request
-type ParamsHandler func(req *http.Request, iface interface{}) error
+func bindXml(req *http.Request, iface interface{}) (err error) {
+	_xml, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return
+	}
+	err = xml.Unmarshal(_xml, iface)
+	return
+}
 
-var paramsHandlers = map[string]ParamsHandler{
+//change the params to request
+type ParamsBinder func(req *http.Request, iface interface{}) error
+
+var paramsHandlers = map[string]ParamsBinder{
 	MIME_JSON:      bindJSON,
 	MIME_POST:      bindFormParams,
 	MIME_MULT_POST: bindFormParams,
+	MIME_XML:       bindXml,
 }
 
-func RegisterParamsHandler(tag string, handler ParamsHandler) bool {
-	if _, conflict := paramsHandlers[tag]; conflict {
-		return false
-	}
-	paramsHandlers[tag] = handler
-	return true
+func RegisterParamsHandler(tag string, handler ParamsBinder) {
+	guard.execSafely(func() {
+		paramsHandlers[tag] = handler
+	})
 }
-
-const (
-	MIME_TEXT      = "text/plain"
-	MIME_JSON      = "application/json"
-	MIME_POST      = "application/x-www-form-urlencoded"
-	MIME_MULT_POST = "multipart/form-data"
-)
 
 func bind(c *Context, iface interface{}) (err error) {
 	if iface == nil {
@@ -429,9 +429,8 @@ func bind(c *Context, iface interface{}) (err error) {
 	if err != nil {
 		return err
 	}
-
+	//3.bind body params
 	if handler, exist := paramsHandlers[mt]; exist {
-		//2.the params
 		err = handler(c.Request, iface)
 		return err
 	}

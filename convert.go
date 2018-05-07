@@ -30,10 +30,9 @@ var convertFunc = map[string]Convert{
 	},
 }
 
-func RegisterConvert(name string, fun Convert) bool {
-	if _, conflict := convertFunc[name]; conflict {
-		return false
-	}
-	convertFunc[name] = fun
-	return true
+func RegisterConvert(name string, fun Convert) {
+	guard.execSafely(func() {
+		convertFunc[name] = fun
+	})
+
 }
