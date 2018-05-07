@@ -93,3 +93,13 @@ func colorForMethod(method string) string {
 		return resetClr
 	}
 }
+
+func genKey(s string) string {
+	if s == "" {
+		return s
+	}
+	if len(s) == 0 {
+		return strings.ToLower(s)
+	}
+	return strings.ToLower(s[0:1]) + s[1:]
+}

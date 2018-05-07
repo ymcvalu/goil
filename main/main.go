@@ -9,10 +9,10 @@ import (
 )
 
 type Params struct {
-	Name      string   `form:"name" validator:"reg(^[a-z]*$)"`
-	PName     *string  `form:"name"`
-	PAge      *int     `form:"age" validator:"range(0 150) min(0) max(150)"`
-	Age       int      `form:"age"`
+	Name      string  `validator:"reg(^[a-z]*$)"`
+	PName     *string `form:"name"`
+	PAge      *int    `form:"age" validator:"range(0 150) min(0) max(150)"`
+	Age       int
 	FileName  string   `file:"music"`
 	PFileName string   `file:"music"`
 	Size      int64    `file:"music"`
@@ -125,27 +125,3 @@ func main() {
 	}
 
 }
-
-// import (
-// 	"net/http"
-
-// 	"github.com/gin-gonic/gin"
-// )
-
-// type Params struct {
-// 	Name  string   `form:"name"`
-// 	Age   *int     `form:"age"`
-// 	Slice []string `form:"slice"`
-// }
-
-// func main() {
-
-// 	router := gin.Default()
-
-// 	router.POST("/", func(c *gin.Context) {
-// 		p := Params{}
-// 		c.Bind(&p)
-// 		c.JSON(http.StatusOK, p)
-// 	})
-// 	router.Run(":8000")
-// }

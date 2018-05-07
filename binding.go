@@ -67,9 +67,10 @@ func bindString(src string, dv reflect.Value, dt reflect.Type, tag reflect.Struc
 }
 
 type File struct {
-	FileName string
-	Size     int64
-	File     multipart.File
+	FileName    string
+	Size        int64
+	File        multipart.File
+	ContentType string
 }
 
 func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error {
@@ -101,9 +102,10 @@ func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error
 		}
 
 		file := &File{
-			FileName: fh.Filename,
-			Size:     fh.Size,
-			File:     fd,
+			FileName:    fh.Filename,
+			Size:        fh.Size,
+			File:        fd,
+			ContentType: fh.Header.Get(CONTENT_TYPE),
 		}
 		dv.Set(valueOf(file))
 
@@ -142,9 +144,10 @@ func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error
 		}
 
 		ptr := &File{
-			FileName: fh.Filename,
-			Size:     fh.Size,
-			File:     fd,
+			FileName:    fh.Filename,
+			Size:        fh.Size,
+			File:        fd,
+			ContentType: fh.Header.Get(CONTENT_TYPE),
 		}
 		dv.Set(valueOf(ptr).Elem())
 
@@ -349,21 +352,23 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 		}
 
 		formKey := tag.Get(FORM)
-		if formKey != "" {
-			pVal, exist := req.PostForm[formKey]
-			if exist && len(pVal) == 0 {
-				continue
-			}
-			if dt.Kind() == reflect.Slice {
-				err = bindSlice(pVal, dv, dt)
-			} else {
-
-				err = bindString(pVal[0], dv, dt, fTyp.Tag)
-			}
-			if err != nil {
-				return
-			}
+		if formKey == "" {
+			formKey = genKey(fTyp.Name)
 		}
+		pVal, exist := req.PostForm[formKey]
+		if !exist || len(pVal) == 0 {
+			continue
+		}
+		if dt.Kind() == reflect.Slice {
+			err = bindSlice(pVal, dv, dt)
+		} else {
+
+			err = bindString(pVal[0], dv, dt, fTyp.Tag)
+		}
+		if err != nil {
+			return
+		}
+
 	}
 
 	return nil
