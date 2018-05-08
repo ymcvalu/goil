@@ -36,6 +36,12 @@ func init() {
 	}
 }
 
+func SetMode(mode int) {
+	guard.execSafely(func() {
+		run_mode = mode
+	})
+}
+
 func RunMode() string {
 	switch run_mode {
 	case PRD_MODE:

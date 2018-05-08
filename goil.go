@@ -55,13 +55,6 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if tsr {
 
 	}
-	//handle the 404 not found
-	ctx := app.getCtx(w, r)
-	//use the global middleware,include print request
-	ctx.chain = append(ctx.chain, app.middlewares...)
-	ctx.chain = append(ctx.chain, NoHandler)
-	ctx.Next()
-	app.putCtx(ctx)
 }
 
 func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {

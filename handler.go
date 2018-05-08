@@ -23,6 +23,10 @@ func combineChain(chain HandlerChain, handlers ...HandlerFunc) HandlerChain {
 	return hc
 }
 
-func NoHandler(c *Context) {
+func NotFoundHandler(c *Context) {
+	c.Status(http.StatusNotFound)
+}
+
+func NotMethodHandler(c *Context) {
 	c.Status(http.StatusNotFound)
 }

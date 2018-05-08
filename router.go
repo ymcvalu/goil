@@ -91,10 +91,17 @@ func (r *router) findTree(method string) (*methodTree, bool) {
 func (r *router) route(method, path string) (chain HandlerChain, params Params, tsr bool) {
 	tree, exist := r.findTree(method)
 	if !exist {
-		chain = nil
+		//return the not method found handler
+		chain = append(r.middlewares, NotMethodHandler)
 		return
 	}
-	return tree.routerMapping(path)
+	chain, params, tsr = tree.routerMapping(path)
+	//404 not found
+	if len(chain) == 0 {
+		chain = append(r.middlewares, NotFoundHandler)
+		return
+	}
+	return
 }
 
 //assert *router and *group implements IRouter interface

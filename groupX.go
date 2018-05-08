@@ -14,7 +14,8 @@ func handlerWrpper(fun interface{}) HandlerFunc {
 	ins := FuncIn(fun)
 	outs := FuncOut(fun)
 	if len(ins) > 2 || len(outs) > 2 {
-		panic("unsupport fun for wrapping,the in of out params")
+		panic("unsupport fun for wrapping,the count of in or out params must not be greater than 2")
 	}
+
 	return nil
 }

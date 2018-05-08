@@ -8,12 +8,6 @@ import (
 	"strconv"
 )
 
-//package init method
-func init() {
-	//开启严格模式
-	setStrictConflictChecked(true)
-}
-
 const (
 	_ = iota
 	//静态路由
@@ -26,29 +20,13 @@ const (
 
 const (
 	_ uint8 = 1 << iota
-	/**
-	严格冲突检查：如果静态路由和参数路由(:或者*)冲突，则报错，默认关闭
-	非严格冲突检查：优先级静态路由>:>*
-	*/
-	_STRICT_CONFILCT_MASK
+
 	_DEBUG
 )
 
 var (
 	flag uint8 = 0
 )
-
-func setStrictConflictChecked(f bool) {
-	if f {
-		flag = flag | _STRICT_CONFILCT_MASK
-	} else {
-		flag = flag & (^_STRICT_CONFILCT_MASK)
-	}
-}
-
-func isStrictConflictChecked() bool {
-	return flag&_STRICT_CONFILCT_MASK > 0
-}
 
 func setDebug(f bool) {
 	if f {
@@ -64,8 +42,8 @@ func isDebug() bool {
 
 type (
 	node struct {
-		typ          uint8        //节点类别
-		priority     uint8        //节点优先级
+		typ uint8 //节点类别
+		//priority     uint8        //节点优先级
 		maxParams    uint8        //最大参数个数
 		pattern      string       //节点对应的模式
 		children     *node        //子节点
@@ -153,66 +131,38 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 					continue
 				}
 				cp := child.pattern[0]
-				//严格冲突检查模式
-				if cc != '/' {
-					if isStrictConflictChecked() {
-						//there has been wild node
-						if cp == ':' || cp == '*' {
-							if cp == cc { //判断是否相同wild节点，如果是,continue
-								i := len(child.pattern)
-								//长度相同，则需要pattern一致，handler为nil
-								if len(cPattern) == i && cPattern == child.pattern {
-									if child.handlerChain == nil {
-										child.handlerChain = chain
-										child.priority++
-										return child
-									}
-								} else if len(cPattern) > i && cPattern[:i] == child.pattern && cPattern[i] == '/' {
-									parent = child
-									pPattern = parent.pattern
-									parent.priority++
-									if parent.maxParams < paramNum {
-										parent.maxParams = paramNum
-									}
-									paramNum--
-									continue loop
-								}
-							}
-							panic("new path '" + url + "' conflicts with existing wildcard '" + child.pattern + "' in existing prefix '" + url[:idx] + "'")
-						}
-						//will to add a wild node,and has some others node
-						if cc == ':' || cc == '*' {
-							panic("new path '" + url + "' conflicts with existing wildcard '" + child.pattern + "' in existing prefix '" + url[:idx] + "'")
-						}
 
-					} else {
-						//判断是否是相同的 wild node
-						if (cp == ':' || cp == '*') && cp == cc {
-							i := len(child.pattern)
-							if len(cPattern) == i && cPattern == child.pattern {
-								if child.handlerChain == nil {
-									child.handlerChain = chain
-									child.priority++
-									return child
-								}
-							} else if len(cPattern) > i && cPattern[:i] == child.pattern && cPattern[i] == '/' {
-								parent = child
-								pPattern = parent.pattern
-								parent.priority++
-								if parent.maxParams < paramNum {
-									parent.maxParams = paramNum
-								}
-								paramNum--
-								continue loop
+				if cp == ':' || cp == '*' {
+					//there has been wild node
+					if cp == cc { //判断是否相同wild节点，如果是,continue
+						i := len(child.pattern)
+						//长度相同，则需要pattern一致，handler为nil
+						if len(cPattern) == i && cPattern == child.pattern {
+							if child.handlerChain == nil {
+								child.handlerChain = chain
+								//child.priority++
+								return child
 							}
+						} else if len(cPattern) > i && cPattern[:i] == child.pattern && cPattern[i] == '/' {
+							parent = child
+							pPattern = parent.pattern
+							//parent.priority++
+							if parent.maxParams < paramNum {
+								parent.maxParams = paramNum
+							}
+							paramNum--
+							continue loop
 						}
 					}
+
+					panic("new path '" + url + "' conflicts with existing wildcard '" + child.pattern + "' in existing prefix '" + url[:idx] + "'")
+
 				}
 
 				if cc == cp {
 					parent = child
 					pPattern = parent.pattern
-					parent.priority++
+					//parent.priority++
 					if parent.maxParams < paramNum {
 						parent.maxParams = paramNum
 					}
@@ -377,10 +327,10 @@ func (root *node) routerMapping(path string) (chain HandlerChain, params Params,
 	curNode := root
 	//保存当前节点的父节点
 	var preNode *node = nil
-	//保存可用的参数节点
-	var paramNode *node = nil
+
 	//保存可用的通配符节点
 	var catchAllNode *node = nil
+
 	//使用局部函数处理返回值
 	//ret := func() {
 	//	chain = curNode.getHandlerChain()
@@ -394,7 +344,7 @@ func (root *node) routerMapping(path string) (chain HandlerChain, params Params,
 	//	}
 	//}
 
-loop:
+lookup:
 	for idx < pl {
 		switch curNode.typ {
 		case param:
@@ -423,18 +373,18 @@ loop:
 						} else if ch.typ == catchAll {
 							tsr = false
 							catchAllNode = ch
-							goto final
+							break lookup
 						}
 					}
 				}
 				//ret()
 				return
 			}
-			goto next
+			break
 
 		case catchAll:
 			catchAllNode = curNode
-			goto final
+			break lookup
 		default:
 			lg := len(curNode.pattern)
 			lv := len(path) - idx
@@ -450,60 +400,47 @@ loop:
 							} else if ch.typ == catchAll {
 								tsr = false
 								catchAllNode = ch
-								goto final
+								break lookup
 							}
 						}
 					}
 					//ret()
 					return
 				} else {
-					goto next
+					break
 				}
 			}
 
-			if !isStrictConflictChecked() && paramNode != nil {
-				curNode = paramNode
-				paramNode = nil
-				continue loop
-			}
-			goto final
-
+			break lookup
 		}
-	next:
+
 		preNode = curNode
-		paramNode = nil
 		for ch := curNode.children; ch != nil; ch = ch.next {
 			switch ch.typ {
 			case param:
 				//strict conflict check mode
-				if isStrictConflictChecked() {
-					curNode = ch
-					continue loop
-				} else {
-					paramNode = ch
-					continue
-				}
+
+				curNode = ch
+				continue lookup
+
 			case catchAll:
-				if isStrictConflictChecked() {
-					curNode = ch
-					//continue loop
-					catchAllNode = ch
-					goto final
-				} else {
-					catchAllNode = ch
-					continue
-				}
+
+				curNode = ch
+				//continue loop
+				catchAllNode = ch
+				break lookup
+
 			default:
 				if ch.pattern[0] == path[idx] {
 					curNode = ch
-					continue loop
+					continue lookup
 				}
 			}
 		}
+
 		break
 	}
 
-final:
 	//catchAllNode is not nil,use it
 	if catchAllNode != nil {
 		chain = catchAllNode.getHandlerChain()
@@ -543,7 +480,7 @@ func WalkTree(n *node, level int, pre string) {
 		prefix += pre
 		i--
 	}
-	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d  priority:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.priority, n.handlerChain != nil)
+	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.handlerChain != nil)
 	for child := n.children; child != nil; child = child.next {
 		WalkTree(child, level+1, pre)
 	}
