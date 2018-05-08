@@ -143,11 +143,10 @@ func IsFunc(v interface{}) bool {
 }
 
 //obtain the types of in params
+//panic if param isn't a function
 func FuncIn(v interface{}) []Type {
 	typ := TypeOf(v)
-	if typ.Kind() != Func {
-		return nil
-	}
+
 	numIn := typ.NumIn()
 	ins := make([]Type, numIn)
 	for i := 0; i < numIn; i++ {
@@ -157,11 +156,10 @@ func FuncIn(v interface{}) []Type {
 }
 
 //obtain the types of out params
+//panic if param isn't a function
 func FuncOut(v interface{}) []Type {
 	typ := TypeOf(v)
-	if typ.Kind() != Func {
-		return nil
-	}
+
 	numOut := typ.NumOut()
 	outs := make([]Type, numOut)
 	for i := 0; i < numOut; i++ {

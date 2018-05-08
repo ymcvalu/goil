@@ -16,17 +16,17 @@ import (
 //HTTP METHOD TYPE
 const (
 	//the DEFAULT method when not other method handler define
-	_ = iota
-	GET
-	POST
-	PUT
-	DELETE
-	HEAD
-	OPTIONS
-	PATCH
-	CONNECT
-	TRACE
-	ANY
+
+	GET     = "GET"
+	POST    = "POST"
+	PUT     = "PUT"
+	DELETE  = "DELETE"
+	HEAD    = "HEAD"
+	OPTIONS = "OPTIONS"
+	PATCH   = "PATCH"
+	CONNECT = "CONNECT"
+	TRACE   = "TRACE"
+	ANY     = "ANY"
 )
 
 type (
@@ -34,16 +34,16 @@ type (
 )
 
 //map method to index
-var methods = map[string]int{
-	"GET":     1,
-	"POST":    2,
-	"PUT":     3,
-	"DELETE":  4,
-	"HEAD":    5,
-	"OPTIONS": 6,
-	"PATCH":   7,
-	"CONNECT": 8,
-	"TRACE":   9,
+var methods = map[string]struct{}{
+	GET:     struct{}{},
+	POST:    struct{}{},
+	PUT:     struct{}{},
+	DELETE:  struct{}{},
+	HEAD:    struct{}{},
+	OPTIONS: struct{}{},
+	PATCH:   struct{}{},
+	CONNECT: struct{}{},
+	TRACE:   struct{}{},
 }
 
 type IRouter interface {
@@ -72,7 +72,7 @@ func (t *methodTree) isNil() bool {
 
 type router struct {
 	group
-	trees []methodTree
+	trees map[string]*methodTree
 }
 
 type group struct {
@@ -82,10 +82,8 @@ type group struct {
 }
 
 func (r *router) findTree(method string) (*methodTree, bool) {
-	for i := range r.trees {
-		if r.trees[i].method == method {
-			return &r.trees[i], true
-		}
+	if tree, ok := r.trees[method]; ok {
+		return tree, true
 	}
 	return nil, false
 }
@@ -105,11 +103,14 @@ var _ IRouter = &group{}
 
 func newRouter() (r *router) {
 	r = &router{
-		trees: make([]methodTree, len(methods)),
+		trees: make(map[string]*methodTree, len(methods)),
 	}
 
-	for k, v := range methods {
-		r.trees[v-1].method = k
+	for k, _ := range methods {
+		tree := methodTree{
+			method: k,
+		}
+		r.trees[k] = &tree
 	}
 
 	r.group.router = r
@@ -142,12 +143,6 @@ func (r *router) add(method string, path string, chain HandlerChain) {
 				typ:     static,
 			}
 		}
-
-		if RunMode() == DBG {
-			handlerNum := len(chain)
-			handlerName := funcName(chain[handlerNum-1])
-			printRouteInfo(method, path, handlerName, handlerNum)
-		}
 		tree.addNode(path, chain)
 	})
 }
@@ -156,7 +151,14 @@ func (g *group) ADD(method string, path string, handlers ...HandlerFunc) IRouter
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add(method, joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	absolutePath := joinPath(g.base, path)
+	chain := combineChain(g.middlewares, handlers...)
+	g.router.add(method, absolutePath, chain)
+	if RunMode() == DBG {
+		handlerNum := len(chain)
+		handlerName := funcName(chain[handlerNum-1])
+		printRouteInfo(method, absolutePath, handlerName, handlerNum)
+	}
 	return g
 }
 
@@ -164,7 +166,7 @@ func (g *group) GET(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("GET", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(GET, path, handlers...)
 	return g
 }
 
@@ -172,7 +174,7 @@ func (g *group) POST(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("POST", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(POST, path, handlers...)
 	return g
 }
 
@@ -180,7 +182,7 @@ func (g *group) PUT(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("PUT", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(PUT, path, handlers...)
 	return g
 }
 
@@ -188,7 +190,7 @@ func (g *group) DELETE(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("DELETE", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(DELETE, path, handlers...)
 	return g
 }
 
@@ -196,7 +198,7 @@ func (g *group) HEAD(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("HEAD", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(HEAD, path, handlers...)
 	return g
 }
 
@@ -204,7 +206,7 @@ func (g *group) OPTIONS(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("OPTIONS", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(OPTIONS, path, handlers...)
 	return g
 }
 
@@ -212,7 +214,7 @@ func (g *group) PATCH(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("PATCH", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(PATCH, path, handlers...)
 	return g
 }
 
@@ -220,7 +222,7 @@ func (g *group) CONNECT(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("CONNECT", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(CONNECT, path, handlers...)
 	return g
 }
 
@@ -228,7 +230,7 @@ func (g *group) TRACE(path string, handlers ...HandlerFunc) IRouter {
 	if len(handlers) == 0 {
 		panic(fmt.Sprintf("handler nil:%s", path))
 	}
-	g.router.add("TRACE", joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+	g.ADD(TRACE, path, handlers...)
 	return g
 }
 
@@ -257,7 +259,7 @@ func (g *group) ANY(path string, handlers ...HandlerFunc) IRouter {
 	}
 
 	for k := range methods {
-		g.router.add(k, joinPath(g.base, path), combineChain(g.middlewares, handlers...))
+		g.ADD(k, path, handlers...)
 	}
 
 	return g
