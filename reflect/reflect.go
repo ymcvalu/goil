@@ -167,3 +167,11 @@ func FuncOut(v interface{}) []Type {
 	}
 	return outs
 }
+
+func FuncDesc(f interface{}) string {
+	typ := TypeOf(f)
+	if typ.Kind() != Func {
+		return ""
+	}
+	return typ.String()
+}

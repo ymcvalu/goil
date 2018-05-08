@@ -74,7 +74,7 @@ func (c *Context) Headers() http.Header {
 }
 
 //get request header by key
-func (c *Context) GetHeader(key string) string {
+func (c *Context) Header(key string) string {
 	return c.Request.Header.Get(key)
 }
 

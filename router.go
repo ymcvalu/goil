@@ -59,6 +59,8 @@ type IRouter interface {
 	CONNECT(path string, handlers ...HandlerFunc) IRouter
 	TRACE(path string, handlers ...HandlerFunc) IRouter
 	ANY(path string, handlers ...HandlerFunc) IRouter
+	Static(path string, filepath string) IRouter
+	StaticFS(path string, fs http.FileSystem) IRouter
 }
 
 type methodTree struct {
@@ -241,8 +243,8 @@ func (g *group) TRACE(path string, handlers ...HandlerFunc) IRouter {
 	return g
 }
 
-func (g *group) Static(path string, filepath string) {
-	g.StaticFS(path, http.Dir(filepath))
+func (g *group) Static(path string, filepath string) IRouter {
+	return g.StaticFS(path, http.Dir(filepath))
 }
 
 func (g *group) StaticFS(path string, fs http.FileSystem) IRouter {

@@ -1,10 +1,11 @@
 package main
 
-import "goil"
+import (
+	"goil"
+)
 
 type route struct {
-	method string
-	path   string
+	method, path string
 }
 
 var githubAPI = []route{
@@ -276,11 +277,25 @@ func main() {
 		c.Text(c.Request.URL.Path)
 	}
 
-	router := goil.Default()
+	app := goil.Default()
 	for _, route := range githubAPI {
-		router.ADD(route.method, route.path, h)
+		app.ADD(route.method, route.path, h)
 	}
 
-	router.Run(":8081")
+	app.Static("/static", "./")
+	g := &goil.GroupX{
+		ErrorHandler:  goil.DefErrHandler,
+		RenderHandler: goil.DefRenderHandler,
+	}
 
+	app.POST("/login", g.Wrapper(func(a *Account) *Account {
+		return a
+	}))
+	app.Run(":8081")
+
+}
+
+type Account struct {
+	Username string
+	Password string
 }

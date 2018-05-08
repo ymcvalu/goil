@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func assert1(guard bool, msg string) {
+func assert1(guard bool, msg interface{}) {
 	if !guard {
 		panic(msg)
 	}

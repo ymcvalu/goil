@@ -200,16 +200,18 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 		return
 	}
 
+	// val := valueOf(iface)
+	// typ := val.Type().Elem()
+	// if valueOf(iface).IsNil() {
+	// 	elemVal := reflect.New(typ)
+	// 	val.Set(elemVal)
+	// 	val = elemVal
+	// } else {
+	// 	val = val.Elem()
+	// }
 	val := valueOf(iface)
-	typ := val.Type().Elem()
-	if valueOf(iface).IsNil() {
-		elemVal := reflect.New(typ)
-		val.Set(elemVal)
-		val = elemVal
-	} else {
-		val = val.Elem()
-	}
-
+	typ := val.Type()
+	val, typ = dereference(val, typ)
 	for i, n := 0, typ.NumField(); i < n; i++ {
 		fVal := val.Field(i)
 
@@ -249,17 +251,19 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 	if len(values) == 0 {
 		return nil
 	}
+	// val := valueOf(iface)
+	// typ := val.Type().Elem()
+
+	// if valueOf(iface).IsNil() {
+	// 	elemVal := reflect.New(typ)
+	// 	val.Set(elemVal)
+	// 	val = elemVal
+	// } else {
+	// 	val = val.Elem()
+	// }
 	val := valueOf(iface)
-	typ := val.Type().Elem()
-
-	if valueOf(iface).IsNil() {
-		elemVal := reflect.New(typ)
-		val.Set(elemVal)
-		val = elemVal
-	} else {
-		val = val.Elem()
-	}
-
+	typ := val.Type()
+	val, typ = dereference(val, typ)
 	for i, n := 0, typ.NumField(); i < n; i++ {
 		fVal := val.Field(i)
 		if !fVal.CanSet() {
@@ -311,15 +315,18 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 		}
 	}
 
+	// val := valueOf(iface)
+	// typ := val.Type().Elem()
+	// if val.IsNil() {
+	// 	elemVal := reflect.New(typ)
+	// 	val.Set(elemVal)
+	// 	val = elemVal
+	// } else {
+	// 	val = val.Elem()
+	// }
 	val := valueOf(iface)
-	typ := val.Type().Elem()
-	if val.IsNil() {
-		elemVal := reflect.New(typ)
-		val.Set(elemVal)
-		val = elemVal
-	} else {
-		val = val.Elem()
-	}
+	typ := typeOf(iface)
+	val, typ = dereference(val, typ)
 	for i := 0; i < typ.NumField(); i++ {
 		fVal := val.Field(i)
 		if !fVal.CanSet() {

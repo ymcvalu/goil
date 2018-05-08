@@ -6,7 +6,7 @@ import (
 )
 
 type App struct {
-	*router
+	router      *router
 	contextPool sync.Pool
 	respPool    sync.Pool
 }
@@ -39,7 +39,7 @@ var _ http.Handler = new(App)
 func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	method := r.Method
-	chain, params, tsr := app.route(method, path)
+	chain, params, tsr := app.router.route(method, path)
 	if chain != nil {
 		ctx := app.getCtx(w, r)
 		//init the context
@@ -112,6 +112,51 @@ func echoBanner() {
 
 func Default() *App {
 	app := New()
-	app.Use(Recover(), PrintRequestInfo())
+	app.router.Use(Recover(), PrintRequestInfo())
 	return app
+}
+
+func (a *App) Group(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.Group(path, handlers...)
+}
+func (a *App) Use(handlers ...HandlerFunc) IRouter {
+	return a.router.Use(handlers...)
+}
+func (a *App) ADD(method, path string, handler ...HandlerFunc) IRouter {
+	return a.router.ADD(method, path, handler...)
+}
+func (a *App) GET(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.GET(path, handlers...)
+}
+func (a *App) POST(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.POST(path, handlers...)
+}
+func (a *App) PUT(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.PUT(path, handlers...)
+}
+func (a *App) DELETE(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.DELETE(path, handlers...)
+}
+func (a *App) OPTIONS(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.OPTIONS(path, handlers...)
+}
+func (a *App) PATCH(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.PATCH(path, handlers...)
+}
+func (a *App) CONNECT(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.CONNECT(path, handlers...)
+}
+func (a *App) TRACE(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.TRACE(path, handlers...)
+
+}
+func (a *App) ANY(path string, handlers ...HandlerFunc) IRouter {
+	return a.router.ANY(path, handlers...)
+
+}
+func (a *App) Static(path string, filepath string) IRouter {
+	return a.router.Static(path, filepath)
+}
+func (a *App) StaticFS(path string, fs http.FileSystem) IRouter {
+	return a.router.StaticFS(path, fs)
 }

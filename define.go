@@ -8,6 +8,7 @@ import (
 const (
 	CONTENT_TYPE     = "Content-Type"
 	CONTENT_ENCODING = "Content-Encoding"
+	ACCEPT           = "Accept"
 )
 
 //TODO:the prefix can config

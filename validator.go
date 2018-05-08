@@ -216,7 +216,7 @@ func validate(iface interface{}) (bool, error) {
 	}
 	eTyp := typeOf(iface)
 	eVal := valueOf(iface)
-	if eTyp.Kind() == reflect.Ptr {
+	for eTyp.Kind() == reflect.Ptr {
 		if eVal.IsNil() {
 			return false, errors.New("nil pointer for validate")
 		}
