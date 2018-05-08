@@ -13,6 +13,30 @@ my graduation project , a micro web framwork by golang
 
 
 # example
+```
+
+type Account struct {
+	Username string
+	Password string
+}
+
+func main() {
+	app := goil.Default()
+	g := &goil.GroupX{
+		ErrorHandler:  goil.DefErrHandler,
+		RenderHandler: goil.DefRenderHandler,
+	}
+
+	app.POST("/login", g.Wrapper(func(a *Account) *Account {
+		return a
+	}))
+	app.Run(":8081")
+}
+
+```
+
+
+
 ```go
 package main
 
