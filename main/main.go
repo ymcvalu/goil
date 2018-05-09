@@ -283,14 +283,28 @@ func main() {
 	}
 
 	app.Static("/static", "./")
-	g := &goil.GroupX{
-		ErrorHandler:  goil.DefErrHandler,
-		RenderHandler: goil.DefRenderHandler,
-	}
 
-	app.POST("/login", g.Wrapper(func(a *Account) *Account {
-		return a
-	}))
+	//模板注册
+	goil.HtmlTemp("news", "tpl.html")
+
+	app.GET("/tpl", func(c *goil.Context) {
+		c.Html("news", &struct{ Title, Content string }{"title", "content"})
+	})
+
+	gx := app.GroupX()
+
+	gx.POST("/login", func(c *goil.Context) {
+		c.Info("before handle")
+		c.Next()
+		c.Info("after handle")
+	}, func(a Account) *Account {
+		return &a
+	}).
+		GET("/news", func() goil.ViewModel {
+			data := struct{ Title, Content string }{"title", "content"}
+			return goil.VM("news", data)
+		})
+
 	app.Run(":8081")
 
 }

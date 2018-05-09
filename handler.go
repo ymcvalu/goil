@@ -7,8 +7,8 @@ import (
 	"net/http"
 )
 
-type HandlerFunc func(*Context)
-type HandlerChain []HandlerFunc
+type HandlerFunc = func(*Context)
+type HandlerChain = []HandlerFunc
 
 func combineChain(chain HandlerChain, handlers ...HandlerFunc) HandlerChain {
 	if len(handlers) == 0 || handlers == nil {

@@ -19,7 +19,7 @@ type ViewModel struct {
 }
 
 func (h *htmls) Render(w Response, content interface{}) error {
-	vm := content.(*ViewModel)
+	vm := content.(ViewModel)
 	return h.root.ExecuteTemplate(w, vm.Name, vm.Model)
 }
 
@@ -63,4 +63,11 @@ func HtmlTemp(name, filepath string) {
 			return
 		}
 	})
+}
+
+func VM(name string, data interface{}) ViewModel {
+	return ViewModel{
+		Name:  name,
+		Model: data,
+	}
 }

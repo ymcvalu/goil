@@ -19,12 +19,12 @@ func UseSession() goil.HandlerFunc {
 		}
 		c.Response.SetHeader(_ClientSidTag, sessionID)
 		session := sessMgr.SessionGet(sessionID)
-		c.Session = session
+
 		c.Next()
 		defer func() {
 			//intercept the panic
 			err := recover()
-			c.Session = nil
+
 			sessMgr.SessionPut(session)
 			if err != nil {
 				panic(err)

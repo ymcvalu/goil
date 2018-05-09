@@ -73,7 +73,7 @@ func (t *methodTree) isNil() bool {
 }
 
 type router struct {
-	group
+	*group
 	trees map[string]*methodTree
 }
 
@@ -113,6 +113,7 @@ var _ IRouter = &group{}
 func newRouter() (r *router) {
 	r = &router{
 		trees: make(map[string]*methodTree, len(methods)),
+		group: &group{},
 	}
 
 	for k, _ := range methods {
@@ -280,5 +281,5 @@ func printRouteInfo(method, path, handlerName string, handlerNum int) {
 		methodColor = colorForMethod(method)
 		resetColor = resetClr
 	}
-	logger.Printf("[route] %s %-6s%s %-25s ==> %s (%d handlers)", methodColor, method, resetColor, path, handlerName, handlerNum)
+	logger.Printf("[router] %s %-6s%s %-25s ==> %s (%d handlers)", methodColor, method, resetColor, path, handlerName, handlerNum)
 }

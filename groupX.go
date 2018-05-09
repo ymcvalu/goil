@@ -19,7 +19,7 @@ func deref(typ Type) Type {
 }
 
 type GroupX struct {
-	group         group
+	group         *group
 	ErrorHandler  ErrorHandler
 	RenderHandler RenderHandler
 }
@@ -122,6 +122,91 @@ func (g *GroupX) Wrapper(fun interface{}) HandlerFunc {
 	}
 }
 
+func (g *GroupX) Group(path string, handlers ...HandlerFunc) *GroupX {
+
+	return &GroupX{
+		group: &group{
+			middlewares: combineChain(g.group.middlewares, handlers...),
+			base:        joinPath(g.group.base, path),
+			router:      g.group.router,
+		},
+		ErrorHandler:  g.ErrorHandler,
+		RenderHandler: g.RenderHandler,
+	}
+}
+func (g *GroupX) Use(handlers ...HandlerFunc) *GroupX {
+	g.group.Use(handlers...)
+	return g
+}
+
+func (g *GroupX) ADD(method, path string, handler ...interface{}) *GroupX {
+	l := len(handler)
+	assert1(l > 0, fmt.Sprintf("the handler of %s is nil", path))
+	if l > 1 {
+		for i := 0; i < l-1; i++ {
+			_, ok := handler[i].(func(*Context))
+			assert1(ok, fmt.Errorf("the type of middleware must be func (*Context)"))
+		}
+	}
+	ml := len(g.group.middlewares)
+	chain := make(HandlerChain, ml, ml+l)
+	copy(chain, g.group.middlewares)
+	for i, h := range handler {
+		if i == l-1 {
+			chain = append(chain, g.Wrapper(h))
+		} else {
+			chain = append(chain, h.(func(*Context)))
+		}
+	}
+	absolutePath := joinPath(g.group.base, path)
+
+	g.group.router.add(method, absolutePath, chain)
+	if RunMode() == DBG {
+		handlerNum := len(chain)
+		handlerName := funcName(handler[l-1])
+		printRouteInfo(method, absolutePath, handlerName, handlerNum)
+	}
+	return g
+}
+
+func (g *GroupX) GET(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(GET, path, handlers...)
+}
+func (g *GroupX) POST(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(POST, path, handlers...)
+}
+func (g *GroupX) PUT(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(PUT, path, handlers...)
+}
+func (g *GroupX) DELETE(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(DELETE, path, handlers...)
+}
+func (g *GroupX) OPTIONS(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(OPTIONS, path, handlers...)
+}
+func (g *GroupX) PATCH(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(PATCH, path, handlers...)
+}
+func (g *GroupX) CONNECT(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(CONNECT, path, handlers...)
+}
+func (g *GroupX) TRACE(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(TRACE, path, handlers...)
+}
+func (g *GroupX) ANY(path string, handlers ...interface{}) *GroupX {
+	return g.ADD(ANY, path, handlers...)
+}
+
+func (g *GroupX) Static(path string, filepath string) *GroupX {
+	g.group.Static(path, filepath)
+	return g
+}
+
+func (g *GroupX) StaticFS(path string, fs http.FileSystem) *GroupX {
+	g.group.StaticFS(path, fs)
+	return g
+}
+
 func DefErrHandler(c *Context, err error) {
 	c.Status(http.StatusInternalServerError)
 	c.Text("system error.")
@@ -130,10 +215,12 @@ func DefErrHandler(c *Context, err error) {
 func DefRenderHandler(c *Context, data interface{}) {
 	if vm, ok := data.(ViewModel); ok {
 		c.Html(vm.Name, vm.Model)
+		return
 	}
 	accept := c.Header(ACCEPT)
 	if accept == "" {
 		c.JSON(data)
+		return
 	}
 	mime, _, err := mime.ParseMediaType(accept)
 	if err != nil {

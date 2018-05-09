@@ -17,9 +17,7 @@ import (
 type Context struct {
 	Logger
 	Request *http.Request
-	//the lifecycle of the field is only in a request
-	//ban to access it outer the request
-	Session  Session
+
 	Response Response
 	chain    HandlerChain
 	idx      int
@@ -243,11 +241,7 @@ func (c *Context) ContentType(contentType string) {
 }
 
 func (c *Context) Html(name string, data interface{}) {
-	vm := ViewModel{
-		Name:  name,
-		Model: data,
-	}
-	c.Render(htmlRender, &vm)
+	c.Render(htmlRender, VM(name, data))
 }
 
 //write the raw text
@@ -362,13 +356,11 @@ func (c *Context) Del(key string) {
 }
 
 func (c *Context) clear() {
-	c.Response = nil
 	c.values = nil
 	c.params = nil
 	c.Request = nil
 	c.chain = nil
 	c.Logger = nil
-	c.Session = nil
 	c.ErrMsg = nil
 	c.ErrCode = 0
 }

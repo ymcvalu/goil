@@ -8,7 +8,6 @@ import (
 type App struct {
 	router      *router
 	contextPool sync.Pool
-	respPool    sync.Pool
 }
 
 func New() *App {
@@ -23,11 +22,6 @@ func New() *App {
 		contextPool: sync.Pool{
 			New: func() interface{} {
 				return &Context{}
-			},
-		},
-		respPool: sync.Pool{
-			New: func() interface{} {
-				return newResponse()
 			},
 		},
 	}
@@ -59,21 +53,18 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {
 	ctx := app.contextPool.Get().(*Context)
-	ctx.Response = app.respPool.Get().(Response)
+	if ctx.Response == Response(nil) {
+		//logger.Info("new response")
+		ctx.Response = newResponse()
+	}
 	ctx.Response.reset(w)
 	ctx.Request = r
 	ctx.idx = 0
 	ctx.Logger = logger
-
 	return ctx
 }
 
 func (app *App) putCtx(ctx *Context) {
-	resp := ctx.Response
-	if _, ok := resp.(*response); ok {
-		app.respPool.Put(resp.clear())
-	}
-	resp = nil
 	ctx.clear()
 	app.contextPool.Put(ctx)
 }
@@ -159,4 +150,12 @@ func (a *App) Static(path string, filepath string) IRouter {
 }
 func (a *App) StaticFS(path string, fs http.FileSystem) IRouter {
 	return a.router.StaticFS(path, fs)
+}
+
+func (a *App) GroupX() *GroupX {
+	return &GroupX{
+		group:         a.router.group,
+		ErrorHandler:  DefErrHandler,
+		RenderHandler: DefRenderHandler,
+	}
 }
