@@ -22,9 +22,8 @@ func New() *App {
 		router: newRouter(),
 		contextPool: sync.Pool{
 			New: func() interface{} {
-				ctx := &Context{}
-				ctx.Response = &ctx.resp
-				return ctx
+				return &Context{}
+
 			},
 		},
 	}

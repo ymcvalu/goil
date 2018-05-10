@@ -374,6 +374,7 @@ func (c *Context) Del(key string) {
 func (c *Context) clear() {
 	c.Request = nil
 	c.resp.clear()
+	c.Response = nil
 	c.chain = nil
 	c.values = nil
 	c.params = nil
@@ -384,6 +385,7 @@ func (c *Context) clear() {
 func (c *Context) reset(w http.ResponseWriter, r *http.Request) {
 	c.Request = r
 	c.resp.reset(w)
+	c.Response = &c.resp
 }
 
 //assert implements context.Context
