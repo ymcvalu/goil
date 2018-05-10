@@ -305,7 +305,6 @@ func main() {
 		})
 
 	app.Run(":8081")
-
 }
 
 type Account struct {

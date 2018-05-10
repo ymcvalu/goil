@@ -42,27 +42,46 @@ func isDebug() bool {
 
 type (
 	node struct {
-		typ uint8 //节点类别
-		//priority     uint8        //节点优先级
+		typ          uint8        //节点类别
+		priority     uint8        //节点优先级
 		maxParams    uint8        //最大参数个数
 		pattern      string       //节点对应的模式
-		children     *node        //子节点
+		head         *node        //子节点
+		tail         *node        //子节点
 		next         *node        //右邻兄弟节点
 		pre          *node        //左邻兄弟节点
 		handlerChain HandlerChain //作用于该节点的中间件
 	}
 )
 
+func (p *node) adjustPriority(c *node) *node {
+	if c == nil {
+		return nil
+	}
+	cur, pre := c, c.pre
+	for pre != nil {
+		if cur.priority > pre.priority {
+			*cur, *pre = *pre, *cur
+			cur.next, pre.next = pre.next, cur.next
+			cur.pre, pre.pre = pre.pre, cur.pre
+			cur, pre = pre, pre.pre
+			continue
+		}
+		break
+	}
+	return cur
+}
+
 /**
 插入路由节点
-参数：
-root：路由树根节点
-url： 目标url
-handler：对应的处理函数
-chain：注册节点时传入的中间件
+参数:
+root: 路由树根节点
+path: 目标path
+handler: 对应的处理函数
+chain: 注册节点时传入的中间件
 */
-func (root *node) addNode(url string, chain HandlerChain) *node {
-	if url == "" || url[0] != '/' {
+func (root *node) addNode(path string, chain HandlerChain) *node {
+	if path == "" || path[0] != '/' {
 		panic("url must start with '/'")
 	}
 	if chain == nil {
@@ -73,10 +92,10 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 		panic("fatal error:invalid tree node")
 	}
 
-	paramNum := getParamNum(url)
+	paramNum := getParamNum(path)
 
 	parent := root
-	pPattern, cPattern := parent.pattern, url
+	pPattern, cPattern := parent.pattern, path
 	idx := 0
 	preIdx := 0
 	//url must start with /
@@ -94,13 +113,13 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 			if preIdx > 0 && preIdx < len(pPattern) {
 
 				child := &node{
-					typ: static,
-
+					typ:          static,
 					pattern:      pPattern[preIdx:],
-					children:     parent.children,
+					head:         parent.head,
+					tail:         parent.tail,
 					handlerChain: parent.handlerChain,
 				}
-				for ch := child.children; ch != nil; ch = ch.next {
+				for ch := child.head; ch != nil; ch = ch.next {
 					if child.maxParams < ch.maxParams {
 						child.maxParams = ch.maxParams
 					}
@@ -108,14 +127,14 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 
 				parent.handlerChain = nil
 				parent.pattern = pPattern[:preIdx]
-				parent.children = child
-				//parent.priority++
+				parent.head = child
+				parent.tail = child
 			}
 			//刚好是前缀
 			if preIdx == len(cPattern) {
 				if parent.handlerChain != nil {
 
-					panic("a handle is already registered for path '" + url + "'")
+					panic("a handle is already registered for path '" + path + "'")
 				}
 
 				parent.handlerChain = chain
@@ -126,7 +145,7 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 			idx += preIdx
 			cc := cPattern[0]
 			//从子节点中查找与cPattern具有相同前缀的节点，进一步提取前缀
-			for child := parent.children; child != nil; child = child.next {
+			for child := parent.head; child != nil; child = child.next {
 				if child.pattern == "" {
 					//println something to report a nil node
 					continue
@@ -141,13 +160,15 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 						if len(cPattern) == i && cPattern == child.pattern {
 							if child.handlerChain == nil {
 								child.handlerChain = chain
-								//child.priority++
+								child.priority++
+								child = parent.adjustPriority(child)
 								return child
 							}
 						} else if len(cPattern) > i && cPattern[:i] == child.pattern && cPattern[i] == '/' {
+							child.priority++
+							child = parent.adjustPriority(child)
 							parent = child
 							pPattern = parent.pattern
-							//parent.priority++
 							if parent.maxParams < paramNum {
 								parent.maxParams = paramNum
 							}
@@ -156,14 +177,16 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 						}
 					}
 
-					panic("new path '" + url + "' conflicts with existing wildcard '" + child.pattern + "' in existing prefix '" + url[:idx] + "'")
+					panic("new path '" + path + "' conflicts with existing wildcard '" + child.pattern + "' in existing prefix '" + path[:idx] + "'")
 
 				}
 
 				if cc == cp {
+					child.priority++
+					child = parent.adjustPriority(child)
 					parent = child
 					pPattern = parent.pattern
-					//parent.priority++
+
 					if parent.maxParams < paramNum {
 						parent.maxParams = paramNum
 					}
@@ -171,7 +194,7 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 				}
 			}
 			//已经没有公共前缀了，添加新的子节点
-			return parent.appendChild(paramNum, cPattern, url, chain)
+			return parent.appendChild(paramNum, cPattern, path, chain)
 
 		}
 	} else { //insert root "/"
@@ -180,19 +203,19 @@ func (root *node) addNode(url string, chain HandlerChain) *node {
 			root.typ = static
 			return root
 		} else {
-			panic("a handle is already registered for path '" + url + "'")
+			panic("a handle is already registered for path '" + path + "'")
 		}
 	}
-	panic("fatal error when add route node '" + url + "'")
+	panic("fatal error when add route node '" + path + "'")
 }
 
-func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerChain) (child *node) {
+func (n *node) appendChild(numParams uint8, pattern, path string, chain HandlerChain) (child *node) {
 	pl := len(pattern)
 	if pl == 0 {
 		return nil
 	}
 	if pattern[0] == '*' && n.pattern[len(n.pattern)-1] != '/' {
-		panic("no '/' before '*' in path '" + url + "'")
+		panic("no '/' before '*' in path '" + path + "'")
 	}
 	parent := n
 	buf := make([]byte, 0, pl)
@@ -203,17 +226,23 @@ func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerCh
 			i := idx
 
 			if pattern[idx] == '*' && idx > 0 && pattern[idx-1] != '/' {
-				panic("no '/' before '*' in path '" + url + "'")
+				panic("no '/' before '*' in path '" + path + "'")
 			}
 
 			if len(buf) > 0 {
 				child = &node{
 					pattern:   string(buf),
 					maxParams: numParams,
-					next:      parent.children,
 					typ:       static,
 				}
-				parent.children = child
+				if parent.tail == nil {
+					parent.tail = child
+					parent.head = child
+				} else {
+					parent.tail.next = child
+					child.pre = parent.tail
+					parent.tail = child
+				}
 				parent = child
 				child = nil
 				//clear the buf
@@ -224,18 +253,18 @@ func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerCh
 			for idx < pl && pattern[idx] != '/' {
 				//repeat wild char,return error
 				if pattern[idx] == ':' || pattern[idx] == '*' {
-					panic("only one wildcard per path segment is allowed, has:'" + pattern[i:] + "' in path '" + url + "'")
+					panic("only one wildcard per path segment is allowed, has:'" + pattern[i:] + "' in path '" + path + "'")
 				}
 				//* can't end with /
 				if pattern[i] == '*' && pattern[idx] == '/' {
-					panic("wildcard '*' are only allowed at the end of the path in path '" + url + "'")
+					panic("wildcard '*' are only allowed at the end of the path in path '" + path + "'")
 				}
 				buf = append(buf, pattern[idx])
 				idx++
 			}
 			//* must in the end of url
 			if pattern[i] == '*' && idx < pl {
-				panic("wildcard '*' are only allowed at the end of the path in path '" + url + "'")
+				panic("wildcard '*' are only allowed at the end of the path in path '" + path + "'")
 			}
 			typ := uint8(0)
 			if pattern[i] == ':' {
@@ -246,10 +275,16 @@ func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerCh
 			child = &node{
 				pattern:   string(buf),
 				maxParams: numParams,
-				next:      parent.children,
 				typ:       typ,
 			}
-			parent.children = child
+			if parent.tail == nil {
+				parent.tail = child
+				parent.head = child
+			} else {
+				parent.tail.next = child
+				child.pre = parent.tail
+				parent.tail = child
+			}
 			parent = child
 			numParams--
 			if idx < pl {
@@ -271,10 +306,17 @@ func (n *node) appendChild(numParams uint8, pattern, url string, chain HandlerCh
 			pattern:      string(buf),
 			maxParams:    numParams,
 			handlerChain: chain,
-			next:         parent.children,
-			typ:          static,
+
+			typ: static,
 		}
-		parent.children = child
+		if parent.tail == nil {
+			parent.tail = child
+			parent.head = child
+		} else {
+			parent.tail.next = child
+			child.pre = parent.tail
+			parent.tail = child
+		}
 	}
 
 	return
@@ -336,7 +378,7 @@ func (root *node) routerMapping(path string) (chain HandlerChain, params Params,
 	//ret := func() {
 	//	chain = curNode.getHandlerChain()
 	//	if chain == nil {
-	//		for ch := curNode.children; ch != nil; ch = ch.next {
+	//		for ch := curNode.head ; ch != nil; ch = ch.next {
 	//			if ch.pattern == "/" {
 	//				tsr = true
 	//				break
@@ -367,7 +409,7 @@ lookup:
 			if idx >= pl {
 				chain = curNode.getHandlerChain()
 				if chain == nil {
-					for ch := curNode.children; ch != nil; ch = ch.next {
+					for ch := curNode.head; ch != nil; ch = ch.next {
 						if ch.pattern == "/" {
 							tsr = true
 						} else if ch.typ == catchAll {
@@ -394,7 +436,7 @@ lookup:
 				if lv == lg {
 					chain = curNode.getHandlerChain()
 					if chain == nil {
-						for ch := curNode.children; ch != nil; ch = ch.next {
+						for ch := curNode.head; ch != nil; ch = ch.next {
 							if ch.pattern == "/" {
 								tsr = true
 							} else if ch.typ == catchAll {
@@ -415,7 +457,7 @@ lookup:
 		}
 
 		preNode = curNode
-		for ch := curNode.children; ch != nil; ch = ch.next {
+		for ch := curNode.head; ch != nil; ch = ch.next {
 			switch ch.typ {
 			case param:
 				//strict conflict check mode
@@ -467,8 +509,8 @@ lookup:
 	return
 }
 
-func (root *node) adjustPriority() {
-
+func (n *node) getHandlerChain() HandlerChain {
+	return n.handlerChain
 }
 
 /**
@@ -481,12 +523,12 @@ func WalkTree(n *node, level int, pre string) {
 		prefix += pre
 		i--
 	}
-	fmt.Printf("%spattern:%s  maxParamNum:%d  type:%d hasHandler:%v\n", prefix, n.pattern, n.maxParams, n.typ, n.handlerChain != nil)
-	for child := n.children; child != nil; child = child.next {
+	fmt.Printf("path:%-30s\tmaxParamsNum:%-5d\ttype:%-5d\thandlerNum:%-5d\tpriority:%-5d\n", prefix+n.pattern, n.maxParams, n.typ, len(n.handlerChain), n.priority)
+	for child := n.head; child != nil; child = child.next {
 		WalkTree(child, level+1, pre)
 	}
 }
 
-func (n *node) getHandlerChain() HandlerChain {
-	return n.handlerChain
-}
+// func (a *App) WalkTree() {
+// 	WalkTree(a.router.trees[GET].node, 0, "-")
+// }
