@@ -16,8 +16,8 @@ import (
 )
 
 type Context struct {
-	Request *http.Request
-
+	Request  *http.Request
+	resp     response
 	Response Response
 	chain    HandlerChain
 	idx      int
@@ -373,12 +373,17 @@ func (c *Context) Del(key string) {
 
 func (c *Context) clear() {
 	c.Request = nil
-	c.Response.clear()
+	c.resp.clear()
 	c.chain = nil
 	c.values = nil
 	c.params = nil
 	c.ErrMsg = nil
 	c.ErrCode = 0
+}
+
+func (c *Context) reset(w http.ResponseWriter, r *http.Request) {
+	c.Request = r
+	c.resp.reset(w)
 }
 
 //assert implements context.Context

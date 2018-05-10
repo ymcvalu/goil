@@ -17,8 +17,6 @@ type Response interface {
 	http.Flusher
 	Status() int
 	Size() int64
-	reset(writer http.ResponseWriter)
-	clear()
 	SetHeader(key, value string)
 	SetStatus(int)
 }

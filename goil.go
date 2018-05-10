@@ -22,7 +22,9 @@ func New() *App {
 		router: newRouter(),
 		contextPool: sync.Pool{
 			New: func() interface{} {
-				return &Context{}
+				ctx := &Context{}
+				ctx.Response = &ctx.resp
+				return ctx
 			},
 		},
 	}
@@ -54,12 +56,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {
 	ctx := app.contextPool.Get().(*Context)
-	if ctx.Response == nil {
-		//logger.Info("new response")
-		ctx.Response = newResponse()
-	}
-	ctx.Response.reset(w)
-	ctx.Request = r
+	ctx.reset(w, r)
 	return ctx
 }
 
