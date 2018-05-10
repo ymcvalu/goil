@@ -290,10 +290,8 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	if contentType != "" {
 		ct, _, err := mime.ParseMediaType(contentType)
 		if ct == MIME_MULT_POST && err == nil {
-			err = req.ParseMultipartForm(DEFAULT_SIZE)
-			if err != nil && err != http.ErrNotMultipart {
-				return err
-			}
+			req.ParseMultipartForm(DEFAULT_SIZE)
+
 		}
 	}
 
