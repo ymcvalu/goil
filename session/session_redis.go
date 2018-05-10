@@ -2,10 +2,10 @@ package session
 
 import (
 	"errors"
+	"goil/helper/encoding"
+	"goil/helper/redis"
 	"goil/logger"
 	"goil/reflect"
-	"goil/util/encoding"
-	"goil/util/redis"
 )
 
 type SessionRedis struct {

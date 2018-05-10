@@ -2,8 +2,8 @@ package session
 
 import (
 	"goil"
+	"goil/helper"
 	"goil/logger"
-	"goil/util"
 	"sync"
 	"time"
 
@@ -42,7 +42,7 @@ func EnableRdsSession() {
 func SetSessStore(sess SessionStore) {
 	once.Do(func() {
 		sessStore = sess
-		time.AfterFunc(util.SecToDuration(GCDuration), sess.SessionGC)
+		time.AfterFunc(helper.SecToDuration(GCDuration), sess.SessionGC)
 	})
 }
 

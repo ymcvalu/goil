@@ -127,6 +127,7 @@ func (g *GroupX) Group(path string, handlers ...HandlerFunc) *GroupX {
 		RenderHandler: g.RenderHandler,
 	}
 }
+
 func (g *GroupX) Use(handlers ...HandlerFunc) *GroupX {
 	g.group.Use(handlers...)
 	return g

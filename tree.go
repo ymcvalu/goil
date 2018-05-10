@@ -47,7 +47,8 @@ type (
 		maxParams    uint8        //最大参数个数
 		pattern      string       //节点对应的模式
 		children     *node        //子节点
-		next         *node        //友邻兄弟节点
+		next         *node        //右邻兄弟节点
+		pre          *node        //左邻兄弟节点
 		handlerChain HandlerChain //作用于该节点的中间件
 	}
 )

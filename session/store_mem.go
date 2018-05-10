@@ -2,7 +2,7 @@ package session
 
 import (
 	"container/list"
-	"goil/util"
+	"goil/helper"
 	"sync"
 	"time"
 )
@@ -97,7 +97,7 @@ func (s *StoreMem) SessionGC() {
 		}
 	}
 	s.mu.RUnlock()
-	time.AfterFunc(util.SecToDuration(GCDuration), s.SessionGC)
+	time.AfterFunc(helper.SecToDuration(GCDuration), s.SessionGC)
 }
 
 func (s *StoreMem) SessionCount() int64 {

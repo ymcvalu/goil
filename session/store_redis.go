@@ -1,8 +1,8 @@
 package session
 
 import (
+	"goil/helper/redis"
 	"goil/logger"
-	"goil/util/redis"
 )
 
 type StoreRedis struct {
