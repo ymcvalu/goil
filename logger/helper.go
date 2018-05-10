@@ -1,4 +1,4 @@
-package log
+package logger
 
 func itoa(buf *[]byte, i int, wid int) {
 	var b [20]byte

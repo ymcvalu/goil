@@ -1,16 +1,15 @@
 package session
 
 import (
-	"errors"
+	"goil/logger"
 	. "goil/reflect"
 	"sync"
 	"time"
 )
 
 type SessionMem struct {
-	mux       sync.RWMutex
-	released  int64
-	holder    uint32
+	mu        sync.RWMutex
+	accessAt  int64
 	values    map[Any]Any
 	sessionID string
 }
@@ -18,71 +17,51 @@ type SessionMem struct {
 var _ Session = new(SessionMem)
 
 func (s *SessionMem) Get(key Any) Any {
-	s.mux.RLock()
+	s.mu.RLock()
 	value := s.values[key]
-	s.mux.RUnlock()
+	s.mu.RUnlock()
+
 	return value
 }
-func (s *SessionMem) Set(key, value Any) error {
+
+func (s *SessionMem) Set(key, value Any) {
 	if !CanComp(key) {
-		return errors.New("the type of key unsupports compare")
+		logger.Panic("the type of key unsupports compare")
 	}
-	s.mux.Lock()
+	s.mu.Lock()
 	s.values[key] = value
-	s.mux.Unlock()
-	return nil
+	s.mu.Unlock()
 }
 func (s *SessionMem) Delete(key Any) {
 	if !CanComp(key) {
 		return
 	}
-	s.mux.Lock()
+	s.mu.Lock()
 	delete(s.values, key)
-	s.mux.Unlock()
+	s.mu.Unlock()
 }
 func (s *SessionMem) Exists(key Any) bool {
 	if !CanComp(key) {
 		return false
 	}
-	s.mux.RLock()
+	s.mu.RLock()
 	_, ok := s.values[key]
-	s.mux.RUnlock()
+	s.mu.RUnlock()
 	return ok
 }
 
 func (s *SessionMem) Flush() {
-	s.mux.Lock()
+	s.mu.Lock()
 	s.values = make(map[Any]Any)
-	s.mux.Unlock()
+	s.mu.Unlock()
 }
 
 func (s *SessionMem) SessionID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.sessionID
 }
 
-// when a goroutine need to acquire a session,need to execute the hole method
-func (s *SessionMem) hold() (alive bool) {
-	s.mux.Lock()
-	if s.holder > 0 || s.released+_ExpireDuration < time.Now().Unix() {
-		s.holder++
-		alive = true
-	}
-	s.mux.Unlock()
-	return
-}
-
-// when a goroutine need to release a session,need to execute the method
-func (s *SessionMem) release() {
-	s.mux.Lock()
-	s.released = time.Now().Unix()
-	s.holder--
-	s.mux.Unlock()
-
-}
-
-func (s *SessionMem) isExpire() (expire bool) {
-	s.mux.RLock()
-	expire = s.holder <= 0 && s.released+_ExpireDuration >= time.Now().Unix()
-	s.mux.RUnlock()
-	return
+func (s *SessionMem) isExpire() bool {
+	return s.accessAt+ExpireDuration <= time.Now().Unix()
 }

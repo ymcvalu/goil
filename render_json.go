@@ -5,7 +5,7 @@ import "encoding/json"
 type Json struct {
 }
 
-var jsonRender = new(Json)
+var JsonRender Render = new(Json)
 
 func (j *Json) Render(w Response, content interface{}) error {
 	byts, err := json.Marshal(content)
@@ -20,22 +20,27 @@ func (j *Json) ContentType() string {
 	return MIME_JSON
 }
 
-type SecJsonRender struct {
+type SecJson struct {
 	prefix string
 }
 
-var secJsonRender = &SecJsonRender{
+var SecJsonRender Render = &SecJson{
 	prefix: JsonSecurePrefix,
 }
 
-func (j *SecJsonRender) Render(w Response, content interface{}) error {
+func (j *SecJson) Render(w Response, content interface{}) error {
 	_, err := w.Write([]byte(j.prefix))
 	if err != nil {
 		return err
 	}
-	return jsonRender.Render(w, content)
+	byts, err := json.Marshal(content)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(byts)
+	return err
 }
 
-func (j *SecJsonRender) ContentType() string {
+func (j *SecJson) ContentType() string {
 	return MIME_JSON
 }

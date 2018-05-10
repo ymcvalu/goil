@@ -26,3 +26,20 @@ func TestFields(t *testing.T) {
 
 	t.Error(IsZero(a))
 }
+
+type Any = interface{}
+
+func TestIsNil(t *testing.T) {
+	var i1 Any = ([]int)(nil)
+	if !IsNil(i1) {
+		t.Error("failed")
+	}
+	var i2 Any = (*string)(nil)
+	if !IsNil(i2) {
+		t.Error("failed")
+	}
+
+	if IsNil(3) {
+		t.Error("failed")
+	}
+}

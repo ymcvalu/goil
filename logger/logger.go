@@ -1,4 +1,4 @@
-package log
+package logger
 
 //TODO:add color for tag
 //TODO:add banner for goil

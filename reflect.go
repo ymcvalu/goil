@@ -32,3 +32,29 @@ func isStruct(iface interface{}) bool {
 func isStructField(field reflect.StructField) bool {
 	return field.Type.Kind() == reflect.Struct
 }
+
+func dereference(dv reflect.Value, dt reflect.Type) (reflect.Value, reflect.Type) {
+	kind := dt.Kind()
+	for kind == reflect.Ptr {
+		if dv.IsNil() {
+			elemTyp := dt.Elem()
+			elemVal := reflect.New(elemTyp)
+			dv.Set(elemVal)
+			dv = elemVal.Elem()
+			dt = elemTyp
+			kind = elemTyp.Kind()
+		} else {
+			dv = dv.Elem()
+			dt = dt.Elem()
+			kind = dt.Kind()
+		}
+	}
+	return dv, dt
+}
+
+func deref(typ reflect.Type) reflect.Type {
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	return typ
+}

@@ -11,13 +11,6 @@ import (
 type ErrorHandler func(*Context, error)
 type RenderHandler func(*Context, interface{})
 
-func deref(typ Type) Type {
-	for typ.Kind() == Ptr {
-		typ = typ.Elem()
-	}
-	return typ
-}
-
 type GroupX struct {
 	group         *group
 	ErrorHandler  ErrorHandler
@@ -209,7 +202,7 @@ func (g *GroupX) StaticFS(path string, fs http.FileSystem) *GroupX {
 
 func DefErrHandler(c *Context, err error) {
 	c.Status(http.StatusInternalServerError)
-	c.Text("system error.")
+	c.Text(err.Error())
 }
 
 func DefRenderHandler(c *Context, data interface{}) {
@@ -217,6 +210,12 @@ func DefRenderHandler(c *Context, data interface{}) {
 		c.Html(vm.Name, vm.Model)
 		return
 	}
+
+	if msg, ok := data.(string); ok {
+		c.Text(msg)
+		return
+	}
+
 	accept := c.Header(ACCEPT)
 	if accept == "" {
 		c.JSON(data)

@@ -36,3 +36,6 @@ func RegisterConvert(name string, fun Convert) {
 	})
 
 }
+
+type IConvert interface {
+}

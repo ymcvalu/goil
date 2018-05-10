@@ -11,10 +11,10 @@ type HandlerFunc = func(*Context)
 type HandlerChain = []HandlerFunc
 
 func combineChain(chain HandlerChain, handlers ...HandlerFunc) HandlerChain {
-	if len(handlers) == 0 || handlers == nil {
+	if len(handlers) == 0 {
 		return chain
 	}
-	if len(chain) == 0 || chain == nil {
+	if len(chain) == 0 {
 		return handlers
 	}
 	hc := make(HandlerChain, len(chain)+len(handlers))

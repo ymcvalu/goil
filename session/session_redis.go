@@ -2,16 +2,18 @@ package session
 
 import (
 	"errors"
+	"goil/logger"
 	"goil/reflect"
 	"goil/util/encoding"
 	"goil/util/redis"
 )
 
 type SessionRedis struct {
-	sessionID string
-	hid       string
-	client    *redis.RedisClient
+	sid    string
+	client *redis.RedisClient
 }
+
+var _ Session = new(SessionRedis)
 
 func (s *SessionRedis) Get(key Any) Any {
 	if !reflect.CanComp(key) {
@@ -19,11 +21,11 @@ func (s *SessionRedis) Get(key Any) Any {
 	}
 	rk, err := encoding.GobEncode(key)
 	if err != nil {
+		logger.Error(err)
 		return nil
 	}
-	sk := string(rk)
-	s.client.Expire(sk, _ExpireDuration)
-	v, err := s.client.HGet(s.hid, sk)
+
+	v, err := s.client.HGet(s.sid, string(rk))
 
 	if err != nil {
 		logger.Errorf("when get session:%s", err)
@@ -37,22 +39,23 @@ func (s *SessionRedis) Get(key Any) Any {
 	return val
 }
 
-func (s *SessionRedis) Set(key, value Any) error {
+func (s *SessionRedis) Set(key, value Any) {
 	if !reflect.CanComp(key) {
-		return errors.New("the type of key unsupports compare")
+		logger.Error("the type of key unsupports compare")
 	}
 	rk, err := encoding.GobEncode(key)
 	if err != nil {
-		return err
+		logger.Error(err)
 	}
 	rv, err := encoding.GobEncode(value)
 	if err != nil {
-		return err
+		logger.Error(err)
 	}
-	sk := string(rv)
-	s.client.Expire(sk, _ExpireDuration)
-	err = s.client.HSet(s.hid, string(rk), sk)
-	return err
+
+	err = s.client.HSet(s.sid, string(rk), string(rv))
+	if err != nil {
+		logger.Error(err)
+	}
 }
 
 func (s *SessionRedis) Delete(key Any) {
@@ -65,9 +68,8 @@ func (s *SessionRedis) Delete(key Any) {
 		logger.Errorf("when delete session:%s", err)
 		return
 	}
-	sk := string(rk)
-	s.client.Expire(sk, _ExpireDuration)
-	_, err = s.client.HDel(s.hid, sk)
+
+	_, err = s.client.HDel(s.sid, string(rk))
 }
 func (s *SessionRedis) Exists(key Any) bool {
 	if !reflect.CanComp(key) {
@@ -79,9 +81,8 @@ func (s *SessionRedis) Exists(key Any) bool {
 		logger.Errorf("in session exists:%s", err)
 		return false
 	}
-	sk := string(rk)
-	s.client.Expire(sk, _ExpireDuration)
-	n, err := s.client.HExist(s.hid, sk)
+
+	n, err := s.client.HExist(s.sid, string(rk))
 	if err != nil {
 		logger.Errorf("in session exists:%s", err)
 		return false
@@ -90,12 +91,12 @@ func (s *SessionRedis) Exists(key Any) bool {
 }
 
 func (s *SessionRedis) Flush() {
-	_, err := s.client.Del(s.hid)
+	_, err := s.client.Del(s.sid)
 	if err != nil {
 		logger.Errorf("when flush redis session:%s", err)
 	}
 }
 
 func (s *SessionRedis) SessionID() string {
-	return s.sessionID
+	return s.sid
 }

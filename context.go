@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"goil/logger"
 	"io"
 	"net"
 	"net/http"
@@ -15,7 +16,6 @@ import (
 )
 
 type Context struct {
-	Logger
 	Request *http.Request
 
 	Response Response
@@ -25,7 +25,7 @@ type Context struct {
 	//ErrMsg and ErrCode is used pass err info among middlewares
 	ErrMsg  error
 	ErrCode int
-	values  map[interface{}]interface{}
+	values  *concurrentMap
 }
 
 //执行 middleware chain 的下一个节点
@@ -120,12 +120,12 @@ func (c *Context) CloseNotify() <-chan bool {
 }
 
 func (c *Context) Param(key string) (value string) {
-	value = c.params[key]
+	value, _ = c.params.get(key)
 	return
 }
 
 func (c *Context) DefParam(key string, def string) string {
-	if value, exist := c.params[key]; exist {
+	if value, exist := c.params.get(key); exist {
 		return value
 	}
 	return def
@@ -149,11 +149,13 @@ func (c *Context) DefQuery(key string, def string) string {
 func (c *Context) BindQuery(iface interface{}) error {
 	err := bindQueryParams(c.Request, iface)
 	if err != nil {
-		return err
+		logger.Errorf("when binding params: %s", err)
+		return ParamsBindingError
 	}
 	legal, err := validate(iface)
 	if err != nil {
-		return err
+		logger.Errorf("when validating params: %s", err)
+		return ParamsValidateError
 	}
 	if !legal {
 		return ParamsInvalidError
@@ -218,12 +220,14 @@ func (c *Context) SaveFile(name, dest string) error {
 func (c *Context) Bind(iface interface{}) error {
 	err := bind(c, iface)
 	if err != nil {
-		return err
+		logger.Errorf("when binding params: %s", err)
+		return ParamsBindingError
 	}
 	legal, err := validate(iface)
 
 	if err != nil {
-		return err
+		logger.Errorf("when validating params: %s", err)
+		return ParamsValidateError
 	}
 	if !legal {
 		return ParamsInvalidError
@@ -241,7 +245,7 @@ func (c *Context) ContentType(contentType string) {
 }
 
 func (c *Context) Html(name string, data interface{}) {
-	c.Render(htmlRender, VM(name, data))
+	c.Render(HtmlRender, VM(name, data))
 }
 
 //write the raw text
@@ -251,12 +255,12 @@ func (c *Context) Text(str string) {
 
 //wirte json
 func (c *Context) JSON(data interface{}) {
-	c.Render(jsonRender, data)
+	c.Render(JsonRender, data)
 }
 
 //wirte json with a prefix
 func (c *Context) SecureJSON(data interface{}) {
-	c.Render(secJsonRender, data)
+	c.Render(SecJsonRender, data)
 }
 
 //write xml
@@ -335,12 +339,12 @@ func (c *Context) ClientIP() string {
 }
 
 func (c *Context) Get(key string) (val interface{}, exists bool) {
-	val, exists = c.values[key]
+	val, exists = c.values.get(key)
 	return
 }
 
 func (c *Context) GetDef(key string, def interface{}) interface{} {
-	val, exists := c.values[key]
+	val, exists := c.values.get(key)
 	if exists {
 		return val
 	}
@@ -348,19 +352,18 @@ func (c *Context) GetDef(key string, def interface{}) interface{} {
 }
 
 func (c *Context) Set(key string, value interface{}) {
-	c.values[key] = value
+	c.values.set(key, value)
 }
 
 func (c *Context) Del(key string) {
-	delete(c.values, key)
+	c.values.del(key)
 }
 
 func (c *Context) clear() {
-	c.values = nil
-	c.params = nil
 	c.Request = nil
 	c.chain = nil
-	c.Logger = nil
+	c.values = nil
+	c.params = nil
 	c.ErrMsg = nil
 	c.ErrCode = 0
 }
@@ -386,5 +389,6 @@ func (c *Context) Err() error {
 }
 
 func (c *Context) Value(key interface{}) interface{} {
-	return c.values[key]
+	val, _ := c.values.get(key)
+	return val
 }

@@ -3,6 +3,7 @@ package goil
 import (
 	"compress/gzip"
 	"errors"
+	"sync"
 )
 
 const (
@@ -14,7 +15,9 @@ const (
 //TODO:the prefix can config
 const JsonSecurePrefix = "for(;;)"
 
-var ParamsInvalidError = errors.New("params validate failed.")
+var ParamsInvalidError = errors.New("params invalid.")
+var ParamsBindingError = errors.New("params binding failed.")
+var ParamsValidateError = errors.New("params validate failed.")
 
 const (
 	MIME_TEXT      = "text/plain"
@@ -59,3 +62,63 @@ var (
 const (
 	Code_NoHandlers = -100
 )
+
+type M map[string]interface{}
+
+type Param struct {
+	Key   string
+	Value string
+}
+
+type Params []Param
+
+func (p *Params) get(key string) (string, bool) {
+	for _, kv := range *p {
+		if kv.Key == key {
+			return kv.Value, true
+		}
+	}
+	return "", false
+}
+
+func (p *Params) set(key string, value string) {
+	*p = append(*p, Param{
+		Key:   key,
+		Value: value,
+	})
+}
+
+type concurrentMap struct {
+	sync.RWMutex
+	values map[interface{}]interface{}
+}
+
+func (c *concurrentMap) get(key interface{}) (interface{}, bool) {
+	c.RLock()
+	val, ok := c.values[key]
+	c.RUnlock()
+	return val, ok
+}
+
+func (c *concurrentMap) set(key, val interface{}) {
+	if val == nil {
+		return
+	}
+	c.Lock()
+	c.values[key] = val
+	c.Unlock()
+}
+
+func (c *concurrentMap) del(key interface{}) {
+	c.Lock()
+	delete(c.values, key)
+	c.Unlock()
+}
+
+var cmNil = (*concurrentMap)(nil)
+
+func (*concurrentMap) new() *concurrentMap {
+	return &concurrentMap{
+		values: make(map[interface{}]interface{}),
+	}
+}

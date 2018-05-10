@@ -12,10 +12,19 @@ type Test struct {
 
 func TestBinding(t *testing.T) {
 	c := Context{
-		params: map[string]string{
-			"i": "11",
-			"f": "13.14",
-			"s": "hello",
+		params: Params{
+			Param{
+				Key:   "i",
+				Value: "11",
+			},
+			Param{
+				Key:   "f",
+				Value: "13.14",
+			},
+			Param{
+				Key:   "s",
+				Value: "hello",
+			},
 		},
 	}
 	test := &Test{}

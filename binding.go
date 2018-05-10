@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"goil/logger"
 	"io/ioutil"
 	"mime"
 	"mime/multipart"
@@ -13,7 +14,7 @@ import (
 	"reflect"
 )
 
-func bindString(src string, dv reflect.Value, dt reflect.Type, tag reflect.StructTag) error {
+func bindValue(src string, dv reflect.Value, dt reflect.Type, tag reflect.StructTag) error {
 	conv := tag.Get(CONVERT)
 	if convFunc, exists := convertFunc[conv]; conv != "" && exists {
 		if !dv.CanSet() {
@@ -159,7 +160,7 @@ func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error
 	return nil
 }
 
-func bindSlice(src []string, dv reflect.Value, dt reflect.Type) error {
+func bindValues(src []string, dv reflect.Value, dt reflect.Type) error {
 	elemType := dt.Elem()
 	switch elemType.Kind() {
 	case reflect.String:
@@ -175,25 +176,6 @@ const (
 	FORM      = "form"
 	FILE      = "file"
 )
-
-func dereference(dv reflect.Value, dt reflect.Type) (reflect.Value, reflect.Type) {
-	kind := dt.Kind()
-	for kind == reflect.Ptr {
-		if dv.IsNil() {
-			elemTyp := dt.Elem()
-			elemVal := reflect.New(elemTyp)
-			dv.Set(elemVal)
-			dv = elemVal.Elem()
-			dt = elemTyp
-			kind = elemTyp.Kind()
-		} else {
-			dv = dv.Elem()
-			dt = dt.Elem()
-			kind = dt.Kind()
-		}
-	}
-	return dv, dt
-}
 
 func bindPathParams(params Params, iface interface{}) (err error) {
 	if len(params) == 0 {
@@ -232,12 +214,12 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 
 		tag := fTyp.Tag
 		pKey := tag.Get(PATH)
-		pVal, exist := params[pKey]
+		pVal, exist := params.get(pKey)
 		if !exist {
 			continue
 		}
 
-		err = bindString(pVal, dv, dt, fTyp.Tag)
+		err = bindValue(pVal, dv, dt, fTyp.Tag)
 		if err != nil {
 			return
 		}
@@ -286,9 +268,9 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 		}
 
 		if dt.Kind() == reflect.Slice {
-			err = bindSlice(pVal, dv, dt)
+			err = bindValues(pVal, dv, dt)
 		} else {
-			err = bindString(pVal[0], dv, dt, fTyp.Tag)
+			err = bindValue(pVal[0], dv, dt, fTyp.Tag)
 		}
 		if err != nil {
 			return
@@ -367,10 +349,10 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			continue
 		}
 		if dt.Kind() == reflect.Slice {
-			err = bindSlice(pVal, dv, dt)
+			err = bindValues(pVal, dv, dt)
 		} else {
 
-			err = bindString(pVal[0], dv, dt, fTyp.Tag)
+			err = bindValue(pVal[0], dv, dt, fTyp.Tag)
 		}
 		if err != nil {
 			return
@@ -436,8 +418,12 @@ func bind(c *Context, iface interface{}) (err error) {
 	if err != nil {
 		return err
 	}
-
-	mt, _, err := mime.ParseMediaType(c.Headers().Get(CONTENT_TYPE))
+	//3.bind body params if existing
+	contentType := c.Headers().Get(CONTENT_TYPE)
+	if contentType == "" {
+		return nil
+	}
+	mt, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return err
 	}

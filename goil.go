@@ -1,6 +1,7 @@
 package goil
 
 import (
+	"goil/logger"
 	"net/http"
 	"sync"
 )
@@ -39,7 +40,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//init the context
 		ctx.chain = chain
 		ctx.params = params
-		ctx.values = make(map[interface{}]interface{})
+		ctx.idx = 0
 		ctx.Next()
 		//detach
 		app.putCtx(ctx)
@@ -59,8 +60,6 @@ func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {
 	}
 	ctx.Response.reset(w)
 	ctx.Request = r
-	ctx.idx = 0
-	ctx.Logger = logger
 	return ctx
 }
 
@@ -152,7 +151,7 @@ func (a *App) StaticFS(path string, fs http.FileSystem) IRouter {
 	return a.router.StaticFS(path, fs)
 }
 
-func (a *App) GroupX() *GroupX {
+func (a *App) XRouter() *GroupX {
 	return &GroupX{
 		group:         a.router.group,
 		ErrorHandler:  DefErrHandler,

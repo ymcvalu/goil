@@ -214,15 +214,11 @@ func validate(iface interface{}) (bool, error) {
 	if iface == nil {
 		return false, errors.New("nil pointer for validate")
 	}
-	eTyp := typeOf(iface)
+
 	eVal := valueOf(iface)
-	for eTyp.Kind() == reflect.Ptr {
-		if eVal.IsNil() {
-			return false, errors.New("nil pointer for validate")
-		}
-		eVal = eVal.Elem()
-		eTyp = eVal.Type()
-	}
+	eTyp := eVal.Type()
+	eVal, eTyp = dereference(eVal, eTyp)
+
 	for i := 0; i < eTyp.NumField(); i++ {
 		fTyp := eTyp.Field(i)
 		tag := fTyp.Tag.Get(VALIDATOR)

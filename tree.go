@@ -349,7 +349,7 @@ lookup:
 		switch curNode.typ {
 		case param:
 			if params == nil {
-				params = make(Params, curNode.maxParams)
+				params = make(Params, 0, curNode.maxParams)
 			}
 
 			paramKey := curNode.pattern[1:]
@@ -362,8 +362,7 @@ lookup:
 			for idx < pl && path[idx] != '/' {
 				idx++
 			}
-			params[paramKey] = path[i:idx]
-
+			params.set(paramKey, path[i:idx])
 			if idx >= pl {
 				chain = curNode.getHandlerChain()
 				if chain == nil {
@@ -452,7 +451,8 @@ lookup:
 		if paramKey == "" {
 			paramKey = "param" + strconv.Itoa(len(params))
 		}
-		params[paramKey] = path[idx:]
+
+		params.set(paramKey, path[idx:])
 		return
 	}
 	chain = nil

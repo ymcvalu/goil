@@ -3,6 +3,7 @@ package goil
 import (
 	"compress/gzip"
 	"fmt"
+	"goil/logger"
 	"net/http"
 	"net/http/httputil"
 	"time"

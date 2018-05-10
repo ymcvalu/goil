@@ -1,8 +1,6 @@
 package goil
 
-import (
-	"encoding/xml"
-)
+import "encoding/xml"
 
 type Xml struct {
 }

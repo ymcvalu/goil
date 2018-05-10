@@ -175,3 +175,30 @@ func FuncDesc(f interface{}) string {
 	}
 	return typ.String()
 }
+
+//if a interface of pointer is nil really
+func IsNilPtr(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	val := ValueOf(i)
+
+	if val.Kind() != Ptr {
+		return false
+	}
+
+	return val.IsNil()
+}
+
+//if a interface is nil really
+func IsNil(i interface{}) bool {
+	if i == nil {
+		return true
+	}
+	val := ValueOf(i)
+	k := val.Kind()
+	if k != Ptr && k != Slice && k != Map && k != Chan {
+		return false
+	}
+	return val.IsNil()
+}

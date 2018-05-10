@@ -9,6 +9,7 @@ package goil
 
 import (
 	"fmt"
+	"goil/logger"
 	"net/http"
 	"strings"
 )
@@ -27,10 +28,6 @@ const (
 	CONNECT = "CONNECT"
 	TRACE   = "TRACE"
 	ANY     = "ANY"
-)
-
-type (
-	Params map[string]string
 )
 
 //map method to index
@@ -95,6 +92,11 @@ func (r *router) route(method, path string) (chain HandlerChain, params Params, 
 	if !exist {
 		//return the not method found handler
 		chain = append(r.middlewares, NotMethodHandler)
+		return
+	}
+	//404 not found
+	if tree.isNil() {
+		chain = append(r.middlewares, NotFoundHandler)
 		return
 	}
 	chain, params, tsr = tree.routerMapping(path)
