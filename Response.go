@@ -18,7 +18,7 @@ type Response interface {
 	Status() int
 	Size() int64
 	reset(writer http.ResponseWriter)
-	clear() interface{}
+	clear()
 	SetHeader(key, value string)
 	SetStatus(int)
 }
@@ -109,9 +109,9 @@ func (w *response) reset(writer http.ResponseWriter) {
 	w.status = http.StatusOK
 }
 
-func (w *response) clear() interface{} {
+func (w *response) clear() {
 	w.writer = nil
-	return w
+
 }
 
 func newResponse() Response {

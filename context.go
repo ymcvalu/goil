@@ -339,11 +339,17 @@ func (c *Context) ClientIP() string {
 }
 
 func (c *Context) Get(key string) (val interface{}, exists bool) {
+	if c.values == nil {
+		return nil, false
+	}
 	val, exists = c.values.get(key)
 	return
 }
 
 func (c *Context) GetDef(key string, def interface{}) interface{} {
+	if c.values == nil {
+		return def
+	}
 	val, exists := c.values.get(key)
 	if exists {
 		return val
@@ -352,15 +358,22 @@ func (c *Context) GetDef(key string, def interface{}) interface{} {
 }
 
 func (c *Context) Set(key string, value interface{}) {
+	if c.values == nil {
+		c.values = cmNil.new()
+	}
 	c.values.set(key, value)
 }
 
 func (c *Context) Del(key string) {
+	if c.values == nil {
+		return
+	}
 	c.values.del(key)
 }
 
 func (c *Context) clear() {
 	c.Request = nil
+	c.Response.clear()
 	c.chain = nil
 	c.values = nil
 	c.params = nil

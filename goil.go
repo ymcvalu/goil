@@ -54,7 +54,7 @@ func (app *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) getCtx(w http.ResponseWriter, r *http.Request) *Context {
 	ctx := app.contextPool.Get().(*Context)
-	if ctx.Response == Response(nil) {
+	if ctx.Response == nil {
 		//logger.Info("new response")
 		ctx.Response = newResponse()
 	}
