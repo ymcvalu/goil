@@ -269,45 +269,11 @@ var githubAPI = []route{
 	{"POST", "/user/keys"},
 	//{"PATCH", "/user/keys/:id"},
 	{"DELETE", "/user/keys/:id"},
-	{"GET", "/test/*"},
 }
 
 func main() {
-	h := func(c *goil.Context) {
-		c.Text(c.Request.URL.Path)
-	}
 
 	app := goil.Default()
-	for _, route := range githubAPI {
-		app.ADD(route.method, route.path, h)
-	}
-
-	app.Static("/static", "./")
-
-	//模板注册
-	goil.Temp("news", "tpl.html")
-
-	app.GET("/tpl", func(c *goil.Context) {
-		c.Html("news", &struct{ Title, Content string }{"title", "content"})
-	})
-
-	gx := app.XRouter()
-
-	gx.POST("/login", func(c *goil.Context) {
-
-		c.Next()
-
-	}, func(a Account) Account {
-		return a
-	}).
-		GET("/news", func() string {
-			return "test"
-		})
 
 	app.Run(":8081")
-}
-
-type Account struct {
-	Username string
-	Password string
 }
