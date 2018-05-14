@@ -11,6 +11,25 @@ import (
 type ErrorHandler func(*Context, error)
 type RenderHandler func(*Context, interface{})
 
+type XRouter interface {
+	Group(path string, handlers ...HandlerFunc) XRouter
+	Use(handlers ...HandlerFunc) XRouter
+	ADD(method, path string, handler ...interface{}) XRouter
+	GET(path string, handlers ...interface{}) XRouter
+	POST(path string, handlers ...interface{}) XRouter
+	PUT(path string, handlers ...interface{}) XRouter
+	DELETE(path string, handlers ...interface{}) XRouter
+	OPTIONS(path string, handlers ...interface{}) XRouter
+	PATCH(path string, handlers ...interface{}) XRouter
+	CONNECT(path string, handlers ...interface{}) XRouter
+	TRACE(path string, handlers ...interface{}) XRouter
+	ANY(path string, handlers ...interface{}) XRouter
+	Static(path string, filepath string) XRouter
+	StaticFS(path string, fs http.FileSystem) XRouter
+}
+
+var _ XRouter = new(GroupX)
+
 type GroupX struct {
 	group         *group
 	ErrorHandler  ErrorHandler
@@ -115,7 +134,7 @@ func (g *GroupX) Wrapper(fun interface{}) HandlerFunc {
 	}
 }
 
-func (g *GroupX) Group(path string, handlers ...HandlerFunc) *GroupX {
+func (g *GroupX) Group(path string, handlers ...HandlerFunc) XRouter {
 
 	return &GroupX{
 		group: &group{
@@ -128,12 +147,12 @@ func (g *GroupX) Group(path string, handlers ...HandlerFunc) *GroupX {
 	}
 }
 
-func (g *GroupX) Use(handlers ...HandlerFunc) *GroupX {
+func (g *GroupX) Use(handlers ...HandlerFunc) XRouter {
 	g.group.Use(handlers...)
 	return g
 }
 
-func (g *GroupX) ADD(method, path string, handler ...interface{}) *GroupX {
+func (g *GroupX) ADD(method, path string, handler ...interface{}) XRouter {
 	l := len(handler)
 	assert1(l > 0, fmt.Sprintf("the handler of %s is nil", path))
 	if l > 1 {
@@ -163,40 +182,43 @@ func (g *GroupX) ADD(method, path string, handler ...interface{}) *GroupX {
 	return g
 }
 
-func (g *GroupX) GET(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) GET(path string, handlers ...interface{}) XRouter {
 	return g.ADD(GET, path, handlers...)
 }
-func (g *GroupX) POST(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) POST(path string, handlers ...interface{}) XRouter {
 	return g.ADD(POST, path, handlers...)
 }
-func (g *GroupX) PUT(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) PUT(path string, handlers ...interface{}) XRouter {
 	return g.ADD(PUT, path, handlers...)
 }
-func (g *GroupX) DELETE(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) DELETE(path string, handlers ...interface{}) XRouter {
 	return g.ADD(DELETE, path, handlers...)
 }
-func (g *GroupX) OPTIONS(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) OPTIONS(path string, handlers ...interface{}) XRouter {
 	return g.ADD(OPTIONS, path, handlers...)
 }
-func (g *GroupX) PATCH(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) PATCH(path string, handlers ...interface{}) XRouter {
 	return g.ADD(PATCH, path, handlers...)
 }
-func (g *GroupX) CONNECT(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) CONNECT(path string, handlers ...interface{}) XRouter {
 	return g.ADD(CONNECT, path, handlers...)
 }
-func (g *GroupX) TRACE(path string, handlers ...interface{}) *GroupX {
+func (g *GroupX) TRACE(path string, handlers ...interface{}) XRouter {
 	return g.ADD(TRACE, path, handlers...)
 }
-func (g *GroupX) ANY(path string, handlers ...interface{}) *GroupX {
-	return g.ADD(ANY, path, handlers...)
+func (g *GroupX) ANY(path string, handlers ...interface{}) XRouter {
+	for methods := range methods {
+		g.ADD(methods, path, handlers...)
+	}
+	return g
 }
 
-func (g *GroupX) Static(path string, filepath string) *GroupX {
+func (g *GroupX) Static(path string, filepath string) XRouter {
 	g.group.Static(path, filepath)
 	return g
 }
 
-func (g *GroupX) StaticFS(path string, fs http.FileSystem) *GroupX {
+func (g *GroupX) StaticFS(path string, fs http.FileSystem) XRouter {
 	g.group.StaticFS(path, fs)
 	return g
 }

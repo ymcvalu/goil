@@ -147,7 +147,7 @@ func (a *App) StaticFS(path string, fs http.FileSystem) IRouter {
 	return a.router.StaticFS(path, fs)
 }
 
-func (a *App) XRouter() *GroupX {
+func (a *App) XRouter() XRouter {
 	return &GroupX{
 		group:         a.router.group,
 		ErrorHandler:  DefErrHandler,
