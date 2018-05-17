@@ -2,7 +2,7 @@ package session
 
 import (
 	"errors"
-	"goil/helper/encoding"
+	"goil/helper/encoding/gob"
 	"goil/helper/redis"
 	"goil/logger"
 	"goil/reflect"
@@ -19,7 +19,7 @@ func (s *SessionRedis) Get(key Any) Any {
 	if !reflect.CanComp(key) {
 		return errors.New("the type of key unsupports compare")
 	}
-	rk, err := encoding.GobEncode(key)
+	rk, err := gob.GobEncode(key)
 	if err != nil {
 		logger.Error(err)
 		return nil
@@ -31,7 +31,7 @@ func (s *SessionRedis) Get(key Any) Any {
 		logger.Errorf("when get session:%s", err)
 		return nil
 	}
-	val, err := encoding.GobDecode([]byte(v))
+	val, err := gob.GobDecode([]byte(v))
 	if err != nil {
 		logger.Errorf("when get session:%s", err)
 		return nil
@@ -43,11 +43,11 @@ func (s *SessionRedis) Set(key, value Any) {
 	if !reflect.CanComp(key) {
 		logger.Error("the type of key unsupports compare")
 	}
-	rk, err := encoding.GobEncode(key)
+	rk, err := gob.GobEncode(key)
 	if err != nil {
 		logger.Error(err)
 	}
-	rv, err := encoding.GobEncode(value)
+	rv, err := gob.GobEncode(value)
 	if err != nil {
 		logger.Error(err)
 	}
@@ -63,7 +63,7 @@ func (s *SessionRedis) Delete(key Any) {
 		logger.Error("session:the type of key unsupports compare")
 		return
 	}
-	rk, err := encoding.GobEncode(key)
+	rk, err := gob.GobEncode(key)
 	if err != nil {
 		logger.Errorf("when delete session:%s", err)
 		return
@@ -76,7 +76,7 @@ func (s *SessionRedis) Exists(key Any) bool {
 		logger.Error("session:the type of key unsupports compare")
 		return false
 	}
-	rk, err := encoding.GobEncode(key)
+	rk, err := gob.GobEncode(key)
 	if err != nil {
 		logger.Errorf("in session exists:%s", err)
 		return false

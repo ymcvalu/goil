@@ -2,6 +2,7 @@ package goil
 
 import (
 	"fmt"
+	"goil/logger"
 	. "goil/reflect"
 	"mime"
 	"net/http"
@@ -224,6 +225,7 @@ func (g *GroupX) StaticFS(path string, fs http.FileSystem) XRouter {
 }
 
 func DefErrHandler(c *Context, err error) {
+	logger.Errorf("when handler reqest:%s", err)
 	c.Status(http.StatusInternalServerError)
 	c.Text(err.Error())
 }

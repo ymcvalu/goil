@@ -25,7 +25,7 @@ const (
 	_max_
 )
 
-var defLogger ILogger = NewAsync(os.Stdin, "", LstdFlags, DebugLevel, 100)
+var defLogger ILogger = NewAsync(os.Stdin, "", LstdFlags, DebugLevel, 100, 4)
 
 type ILogger interface {
 	Printf(format string, msg ...interface{})

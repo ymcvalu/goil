@@ -1,4 +1,4 @@
-package encoding
+package gob
 
 import (
 	"testing"

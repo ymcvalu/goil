@@ -2,19 +2,31 @@ package main
 
 import (
 	"goil"
+	"goil/session"
+	"strconv"
 )
 
-func main() {
-
-	app := goil.Default()
-	xr := app.XRouter()
-	xr.POST("/login", func(p *Params) *Params {
-		return p
-	})
-	app.Run(":8081")
+type UserInfo struct {
+	UserID   int    `path:"user_id"`
+	Username string `validator:"reg(^[a-zA-Z]*$)"`
+	Sex      string `validator:"reg(^[M|F]$)"`
+	Age      int
+	Location string
 }
 
-type Params struct {
-	Username string
-	Password string
+func main() {
+	app := goil.Default()
+	xrouter := app.XRouter()
+	xrouter.POST("/user/:user_id", func(c *goil.Context, userInfo *UserInfo) {
+		sess := session.SessionRead(c)
+		sess.Set(userInfo.UserID, userInfo)
+		c.Text("succ")
+	})
+	xrouter.GET("/user/:user_id", func(c *goil.Context) {
+		sess := session.SessionRead(c)
+		userID, _ := strconv.Atoi(c.Param("user_id"))
+		info := sess.Get(userID)
+		c.JSON(info)
+	})
+	app.Run(":8081")
 }

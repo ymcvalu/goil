@@ -17,7 +17,6 @@ type SessionStore interface {
 	SessionCount() int64
 	SessionGC()
 }
-
 type Session interface {
 	Get(value interface{}) interface{}
 	Set(key, value interface{})
@@ -29,6 +28,10 @@ type Session interface {
 
 var once sync.Once
 var sessStore SessionStore
+
+func init() {
+	EnableMemSession()
+}
 
 func EnableMemSession() {
 	sessStore = NewStoreMem()

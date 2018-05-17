@@ -1,10 +1,5 @@
 package logger
 
-//TODO:add color for tag
-//TODO:add banner for goil
-//TODO:add request log middleware
-//TODO:add router print method
-
 import (
 	"fmt"
 	"io"
@@ -17,14 +12,15 @@ import (
 )
 
 type Logger struct {
-	mu     sync.RWMutex
-	prefix string
-	flag   int
-	out    io.Writer
-	level  int
+	mu        sync.RWMutex
+	prefix    string
+	flag      int
+	out       io.Writer
+	level     int
+	calldepth int
 }
 
-func New(out io.Writer, prefix string, flag int, level int) *Logger {
+func New(out io.Writer, prefix string, flag, level, calldepth int) *Logger {
 	if out == nil {
 		out = os.Stdin
 	}
@@ -33,10 +29,11 @@ func New(out io.Writer, prefix string, flag int, level int) *Logger {
 	}
 
 	return &Logger{
-		out:    out,
-		prefix: prefix,
-		flag:   flag,
-		level:  level,
+		out:       out,
+		prefix:    prefix,
+		flag:      flag,
+		level:     level,
+		calldepth: calldepth,
 	}
 }
 
@@ -138,8 +135,6 @@ func (l *Logger) formatHeader(buf *[]byte, prefix string, t time.Time, file stri
 	}
 }
 
-const calldepth = 2
-
 func (l *Logger) write(calldepth int, prefix, s string) error {
 	now := time.Now()
 	var file string
@@ -191,56 +186,56 @@ func (l *Logger) Infof(format string, msg ...interface{}) {
 	if l.level > InfoLevel {
 		return
 	}
-	l.write(calldepth, "[info] ", fmt.Sprintf(format, msg...))
+	l.write(l.calldepth, "[info] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Info(msg ...interface{}) {
 	if l.level > InfoLevel {
 		return
 	}
-	l.write(calldepth, "[info] ", fmt.Sprint(msg...))
+	l.write(l.calldepth, "[info] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Debugf(format string, msg ...interface{}) {
 	if l.level > DebugLevel {
 		return
 	}
-	l.write(calldepth, "[debug] ", fmt.Sprintf(format, msg...))
+	l.write(l.calldepth, "[debug] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Debug(msg ...interface{}) {
 	if l.level > DebugLevel {
 		return
 	}
-	l.write(calldepth, "[debug] ", fmt.Sprint(msg...))
+	l.write(l.calldepth, "[debug] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Warnf(format string, msg ...interface{}) {
 	if l.level > WarnLevel {
 		return
 	}
-	l.write(calldepth, "[warn] ", fmt.Sprintf(format, msg...))
+	l.write(l.calldepth, "[warn] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Warn(msg ...interface{}) {
 	if l.level > WarnLevel {
 		return
 	}
-	l.write(calldepth, "[warn] ", fmt.Sprint(msg...))
+	l.write(l.calldepth, "[warn] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Errorf(format string, msg ...interface{}) {
 	if l.level > ErrorLevel {
 		return
 	}
-	l.write(calldepth, "[error] ", fmt.Sprintf(format, msg...))
+	l.write(l.calldepth, "[error] ", fmt.Sprintf(format, msg...))
 }
 
 func (l *Logger) Error(msg ...interface{}) {
 	if l.level > ErrorLevel {
 		return
 	}
-	l.write(calldepth, "[error] ", fmt.Sprint(msg...))
+	l.write(l.calldepth, "[error] ", fmt.Sprint(msg...))
 }
 
 func (l *Logger) Panicf(format string, msg ...interface{}) {
@@ -248,7 +243,7 @@ func (l *Logger) Panicf(format string, msg ...interface{}) {
 		return
 	}
 	message := fmt.Sprintf(format, msg...)
-	l.write(calldepth, "[panic] ", message)
+	l.write(l.calldepth, "[panic] ", message)
 	panic(message)
 }
 
@@ -257,7 +252,7 @@ func (l *Logger) Panic(msg ...interface{}) {
 		return
 	}
 	message := fmt.Sprint(msg...)
-	l.write(calldepth, "[panic] ", message)
+	l.write(l.calldepth, "[panic] ", message)
 	panic(message)
 }
 
@@ -266,7 +261,7 @@ func (l *Logger) Fatalf(format string, msg ...interface{}) {
 		return
 	}
 
-	l.write(calldepth, "[fatal] ", fmt.Sprintf(format, msg...))
+	l.write(l.calldepth, "[fatal] ", fmt.Sprintf(format, msg...))
 	os.Exit(-1)
 }
 
@@ -275,7 +270,7 @@ func (l *Logger) Fatal(msg ...interface{}) {
 		return
 	}
 
-	l.write(calldepth, "[fatal] ", fmt.Sprint(msg...))
+	l.write(l.calldepth, "[fatal] ", fmt.Sprint(msg...))
 	os.Exit(-1)
 }
 

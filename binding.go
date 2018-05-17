@@ -262,6 +262,9 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 		}
 		tag := fTyp.Tag
 		pKey := tag.Get(FORM)
+		if pKey == "" {
+			pKey = genKey(fTyp.Name)
+		}
 		pVal, exist := values[pKey]
 		if !exist || len(pVal) == 0 {
 			continue

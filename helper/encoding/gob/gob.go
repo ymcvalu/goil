@@ -1,8 +1,9 @@
-package encoding
+package gob
 
 import (
 	"bytes"
 	"encoding/gob"
+	. "goil/helper/encoding"
 )
 
 func init() {

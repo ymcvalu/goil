@@ -29,15 +29,16 @@ type entry struct {
 }
 
 type AsyncLogger struct {
-	flag   int
-	level  int
-	out    io.Writer
-	prefix string
-	mq     chan *entry
-	pool   sync.Pool
+	flag      int
+	level     int
+	out       io.Writer
+	prefix    string
+	mq        chan *entry
+	pool      sync.Pool
+	calldepth int
 }
 
-func NewAsync(out io.Writer, prefix string, flag, level, bs int) (l *AsyncLogger) {
+func NewAsync(out io.Writer, prefix string, flag, level, bs, calldepth int) (l *AsyncLogger) {
 	if out == nil {
 		out = os.Stdin
 	}
@@ -45,11 +46,12 @@ func NewAsync(out io.Writer, prefix string, flag, level, bs int) (l *AsyncLogger
 		level = FatalLevel
 	}
 	l = &AsyncLogger{
-		flag:   flag,
-		level:  level,
-		prefix: prefix,
-		out:    out,
-		mq:     make(chan *entry, bs),
+		flag:      flag,
+		level:     level,
+		prefix:    prefix,
+		out:       out,
+		calldepth: calldepth,
+		mq:        make(chan *entry, bs),
 		pool: sync.Pool{
 			New: func() interface{} {
 				return new(entry)
@@ -326,7 +328,7 @@ func (l *AsyncLogger) putEntry(entry *entry) {
 }
 
 func (e *entry) init(l *AsyncLogger) {
-	file, line := l.callerInfo(3)
+	file, line := l.callerInfo(l.calldepth)
 	e.file = file
 	e.line = line
 	e.time = time.Now()
