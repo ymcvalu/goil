@@ -1,15 +1,9 @@
-# goil
+package main
 
-```
-    __________       
-   / ________/         ______
-  / / _____  _______  /__/  /  
- / / /____ \/  ___  \/  /  /   
-/ /______/ /  /__/  /  /  /__ 
-\_________/\_______/\_/\____/ 
-```
+import (
+	"goil"
+)
 
-```go
 func main() {
 	app := goil.Default()
 	app.GET("/hello/:who", func(c *goil.Context) {
@@ -24,4 +18,3 @@ func main() {
 	})
 	app.Run(":8081")
 }
-```

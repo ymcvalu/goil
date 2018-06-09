@@ -102,7 +102,7 @@ func Recover() HandlerFunc {
 				fontColor = redFont
 				reset = resetClr
 			}
-			logger.Printf("%s[recover] %s\n%s\n%s%s", fontColor, err, string(reqInfo), string(stackInfo(5)), reset)
+			logger.Printf("%s[recover] %s\n%s\n%s%s", fontColor, err, string(reqInfo), string(stackInfo(3)), reset)
 		}()
 		c.Next()
 	}

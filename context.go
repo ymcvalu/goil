@@ -152,13 +152,14 @@ func (c *Context) BindQuery(iface interface{}) error {
 		logger.Errorf("when binding params: %s", err)
 		return ParamsBindingError
 	}
-	legal, err := validate(iface)
+
+	err = validate(iface)
+
 	if err != nil {
-		logger.Errorf("when validating params: %s", err)
-		return ParamsValidateError
-	}
-	if !legal {
-		return ParamsInvalidError
+		verr := ValidatorError{}
+		verr.Init("when exec validate:%s", err)
+		return &verr
+
 	}
 	return nil
 }
@@ -223,15 +224,16 @@ func (c *Context) Bind(iface interface{}) error {
 		logger.Errorf("when binding params: %s", err)
 		return ParamsBindingError
 	}
-	legal, err := validate(iface)
+
+	err = validate(iface)
 
 	if err != nil {
-		logger.Errorf("when validating params: %s", err)
-		return ParamsValidateError
+		verr := ValidatorError{}
+		verr.Init("when exec validate:%s", err)
+		return &verr
+
 	}
-	if !legal {
-		return ParamsInvalidError
-	}
+
 	return nil
 }
 

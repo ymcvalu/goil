@@ -27,6 +27,8 @@ type XRouter interface {
 	ANY(path string, handlers ...interface{}) XRouter
 	Static(path string, filepath string) XRouter
 	StaticFS(path string, fs http.FileSystem) XRouter
+	SetRenderHandler(handler RenderHandler)
+	SetErrorHandler(handler ErrorHandler)
 }
 
 var _ XRouter = new(GroupX)
@@ -256,4 +258,11 @@ func DefRenderHandler(c *Context, data interface{}) {
 	default:
 		c.JSON(data)
 	}
+}
+
+func (g *GroupX) SetRenderHandler(handler RenderHandler) {
+	g.RenderHandler = handler
+}
+func (g *GroupX) SetErrorHandler(handler ErrorHandler) {
+	g.ErrorHandler = handler
 }

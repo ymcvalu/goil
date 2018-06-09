@@ -98,7 +98,7 @@ func echoBanner() {
 
 func Default() *App {
 	app := New()
-	app.router.Use(Recover(), PrintRequestInfo())
+	app.router.Use(PrintRequestInfo(), Recover())
 	return app
 }
 

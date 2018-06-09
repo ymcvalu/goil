@@ -2,29 +2,82 @@ package goil
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strconv"
 )
 
-type Validator func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error)
+type ValidatedField struct {
+	Value  reflect.Value
+	Type   reflect.Type
+	params []string
+}
 
-var validateFunc = map[string]Validator{
-	"required": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if !value.IsValid() {
-			return false, nil
+func (f *ValidatedField) ParamsNum() int {
+	return len(f.params)
+}
+
+func (f *ValidatedField) Params() []string {
+	return f.params
+}
+
+func (f *ValidatedField) String(i int) (string, error) {
+	if i < 0 || i >= f.ParamsNum() {
+		return "", errors.New("outer of range")
+	}
+	return f.params[i], nil
+}
+
+func (f *ValidatedField) Float(i int) (float64, error) {
+	if i < 0 || i >= f.ParamsNum() {
+		return 0, errors.New("outer of range")
+	}
+	return strconv.ParseFloat(f.params[i], 64)
+}
+
+func (f *ValidatedField) Int(i int) (int64, error) {
+	if i < 0 || i >= f.ParamsNum() {
+		return 0, errors.New("outer of range")
+	}
+	return strconv.ParseInt(f.params[i], 10, 64)
+}
+
+func (f *ValidatedField) Uint(i int) (uint64, error) {
+	if i < 0 || i >= f.ParamsNum() {
+		return 0, errors.New("outer of range")
+	}
+	return strconv.ParseUint(f.params[i], 10, 64)
+}
+
+func (f *ValidatedField) Bool(i int) (bool, error) {
+	if i < 0 || i >= f.ParamsNum() {
+		return false, errors.New("outer of range")
+	}
+	return strconv.ParseBool(f.params[i])
+}
+
+type ＶalidateFunc = func(f ValidatedField) bool
+
+var validateFunc = map[string]ＶalidateFunc{
+	"required": func(f ValidatedField) bool {
+		val := f.Value
+		switch val.Kind() {
+		case reflect.Slice, reflect.Map, reflect.Ptr, reflect.Interface, reflect.Chan, reflect.Func:
+			return !val.IsNil()
+		default:
+			return val.IsValid() && val.Interface() != reflect.Zero(val.Type()).Interface()
 		}
-		return true, nil
 	},
-	"min": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for min validator")
+	"min": func(f ValidatedField) bool {
+		if f.ParamsNum() < 0 {
+			return false
 		}
-		min, err := strconv.ParseFloat(params[0], 64)
+		min, err := f.Float(0)
 		if err != nil {
-			return false, err
+			return false
 		}
-
+		value := f.Value
 		switch value.Interface().(type) {
 		case int, int64, int32, int8:
 			goto iv
@@ -32,46 +85,46 @@ var validateFunc = map[string]Validator{
 			goto fv
 		case *int, *int64, *int32, *int8:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto iv
 		case *float32, *float64:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto fv
 		}
-		return false, nil
+		return false
 	iv:
 		{
 			intVal := value.Int()
 			if intVal < int64(min) {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	fv:
 		{
 			fltVal := value.Float()
 			if fltVal < min {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	},
-	"max": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for min validator")
+	"max": func(f ValidatedField) bool {
+		if f.ParamsNum() < 1 {
+			return false
 		}
-		max, err := strconv.ParseFloat(params[0], 64)
+		max, err := f.Float(0)
 		if err != nil {
-			return false, err
+			return false
 		}
-
+		value := f.Value
 		switch value.Interface().(type) {
 		case int, int64, int32, int8:
 			goto iv
@@ -79,51 +132,50 @@ var validateFunc = map[string]Validator{
 			goto fv
 		case *int, *int64, *int32, *int8:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto iv
 		case *float32, *float64:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto fv
 		}
-		return false, nil
+		return false
 	iv:
 		{
 			intVal := value.Int()
 			if intVal > int64(max) {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	fv:
 		{
 			fltVal := value.Float()
 			if fltVal > max {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	},
-	"range": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-
-		if params == nil || len(params) < 2 {
-			return false, errors.New("params error for min validator")
+	"range": func(f ValidatedField) bool {
+		if f.ParamsNum() < 2 {
+			return false
 		}
-		min, err := strconv.ParseFloat(params[0], 64)
+		min, err := f.Float(0)
 		if err != nil {
-			return false, err
+			return false
 		}
-		max, err := strconv.ParseFloat(params[1], 64)
+		max, err := f.Float(1)
 		if err != nil {
-			return false, err
+			return false
 		}
-
+		value := f.Value
 		switch value.Interface().(type) {
 		case int, int64, int32, int8:
 			goto iv
@@ -131,88 +183,124 @@ var validateFunc = map[string]Validator{
 			goto fv
 		case *int, *int64, *int32, *int8:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto iv
 		case *float32, *float64:
 			if value.IsNil() {
-				return false, nil
+				return false
 			}
 			value = value.Elem()
 			goto fv
 		}
-		return false, nil
+		return false
 	iv:
 		{
 			intVal := value.Int()
 			if intVal > int64(max) || intVal < int64(min) {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	fv:
 		{
 			fltVal := value.Float()
 			if fltVal > max || fltVal < min {
-				return false, nil
+				return false
 			}
-			return true, nil
+			return true
 		}
 
 	},
-	"reg": func(value reflect.Value, fTyp reflect.Type, params []string) (bool, error) {
-		if params == nil || len(params) < 1 {
-			return false, errors.New("params error for reg validator")
+	"reg": func(f ValidatedField) bool {
+		if f.ParamsNum() < 1 {
+			return false
 		}
-		reg, err := regexp.Compile(params[0])
+		exp, err := f.String(0)
 		if err != nil {
-			return false, err
+			return false
 		}
-		switch val := value.Interface().(type) {
+		reg, err := regexp.Compile(exp)
+		if err != nil {
+			return false
+		}
+		switch val := f.Value.Interface().(type) {
 		case string:
-			return reg.MatchString(val), nil
+			return reg.MatchString(val)
 		case *string:
 			if val != nil {
-				return reg.MatchString(*val), nil
+				return reg.MatchString(*val)
 			}
-			return false, errors.New("the validating field is nil")
+			return reg.MatchString("")
 		}
-		return false, errors.New("validator reg only support string type")
+		return false
+	},
+	"enum": func(f ValidatedField) bool {
+		dv, dt := f.Value, f.Type
+		kind := dt.Kind()
+		switch kind {
+		case reflect.Ptr:
+			for dt.Kind() == reflect.Ptr {
+				if dv.IsNil() {
+					return false
+				}
+				dv, dt = dv.Elem(), dt.Elem()
+			}
+			if dt.Kind() != reflect.String {
+				return false
+			}
+			fallthrough
+		case reflect.String:
+			val := dv.String()
+			params := f.Params()
+			for i := range params {
+				if val == params[i] {
+					return true
+				}
+			}
+		default:
+			return false
+		}
+
+		return false
 	},
 }
 
-var NoValidatorExists = errors.New("no validator exists")
-
-func RegisterValidator(name string, validator Validator) {
+func RegisterValidator(name string, fun ＶalidateFunc) {
 	guard.execSafely(func() {
-		validateFunc[name] = validator
+		validateFunc[name] = fun
 	})
 }
 
-func validateField(tag string, val reflect.Value, rTyp reflect.StructField) (bool, error) {
+func validateField(tag string, val reflect.Value, rTyp reflect.StructField) error {
 	keys, params, err := parseTag(tag)
 	if err != nil {
-		return false, err
+		panic(err)
 	}
 	for i := range keys {
-
-		if validator, e := validateFunc[keys[i]]; e {
-			ok, err := validator(val, rTyp.Type, params[i])
-			if !ok || err != nil {
-				return ok, err
+		if validator, exists := validateFunc[keys[i]]; exists {
+			f := ValidatedField{
+				Value:  val,
+				Type:   rTyp.Type,
+				params: params[i],
+			}
+			ok := validator(f)
+			if !ok {
+				name := rTyp.Name
+				return fmt.Errorf("failed to validate %s for %s", name, keys[i])
 			}
 		} else {
-			return false, NoValidatorExists
+			panic(fmt.Errorf("no validator exists for %s", keys[i]))
 		}
 	}
-	return true, nil
+	return nil
 }
 
-func validate(iface interface{}) (bool, error) {
+func validate(iface interface{}) error {
 	if iface == nil {
-		return false, errors.New("nil pointer for validate")
+		return errors.New("nil pointer for validate")
 	}
 
 	eVal := valueOf(iface)
@@ -221,103 +309,26 @@ func validate(iface interface{}) (bool, error) {
 
 	for i := 0; i < eTyp.NumField(); i++ {
 		fTyp := eTyp.Field(i)
-		tag := fTyp.Tag.Get(VALIDATOR)
-
-		if tag == "" {
+		if !export(fTyp.Name) {
 			continue
 		}
 		fVal := eVal.Field(i)
-		legal, err := validateField(tag, fVal, fTyp)
-		if !legal || err != nil {
-			return legal, err
-		}
-	}
-	return true, nil
-}
 
-func parseTag(tag string) ([]string, [][]string, error) {
-	var names = make([]string, 0, 1)
-	var paramses = make([][]string, 0, 1)
-	illegal := false
-	bg, bd := 0, len(tag)
+		tag := fTyp.Tag.Get(VALIDATOR)
 
-	for {
-		//trim the prefix space
-		for bg < bd && tag[bg] == ' ' {
-			bg++
-		}
-		i := bg
-		for i < bd {
-			if tag[i] == '(' {
-				illegal = true
-				break
-			}
-			if tag[i] == ' ' {
-				break
-			}
-			i++
-		}
-		j := i + 1
-		for j < bd && illegal {
-			if tag[j] == ')' {
-				illegal = false
-				break
-			}
-			j++
-		}
-
-		if illegal {
-			return nil, nil, errors.New("the tag of validator less ')'")
-		}
-		//remove the suffix space
-		nd := i - 1
-		for i > bg && tag[nd] == ' ' {
-			nd--
-		}
-		if nd > bg {
-			names = append(names, tag[bg:nd+1])
-		}
-		i++
-		if i >= j {
-			if nd > bg {
-				paramses = append(paramses, nil)
-			}
-			bg = j + 1
-			if bg >= bd {
-				break
+		if tag == "" {
+			if IsStructReally(fTyp.Type) {
+				err := validate(fVal.Interface())
+				if err != nil {
+					return err
+				}
 			}
 			continue
 		}
-
-		params := make([]string, 0, 1)
-		buf := make([]byte, len(tag[i:j]))
-
-		for i < j {
-			//trim the space
-			if tag[i] == ' ' {
-				i++
-				continue
-			}
-			buf[0] = tag[i]
-			i++
-			p := 1
-			for i < j {
-				if tag[i] != ' ' {
-					buf[p] = tag[i]
-					p++
-					i++
-					continue
-				}
-				break
-			}
-			params = append(params, string(buf[:p]))
-		}
-
-		paramses = append(paramses, params)
-		bg = j + 1
-		if bg >= bd {
-			break
+		err := validateField(tag, fVal, fTyp)
+		if err != nil {
+			return err
 		}
 	}
-	return names, paramses, nil
+	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"time"
 )
 
 func bindValue(src string, dv reflect.Value, dt reflect.Type, tag reflect.StructTag) error {
@@ -75,10 +76,21 @@ type File struct {
 }
 
 func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error {
+
 	if !dv.CanSet() {
 		return nil
 	}
 
+	if dt.String() == "multipart.File" {
+		file, err := fh.Open()
+		if err != nil {
+			return fmt.Errorf("open upload file:%s", err)
+		}
+		if f, ok := file.(multipart.File); ok {
+			dv.Set(valueOf(f))
+		}
+		return nil
+	}
 	switch dv.Interface().(type) {
 	//pointer:assign directly
 	case *int64:
@@ -110,14 +122,6 @@ func bindFile(fh *multipart.FileHeader, dv reflect.Value, dt reflect.Type) error
 		}
 		dv.Set(valueOf(file))
 
-	case multipart.File:
-		file, err := fh.Open()
-		if err != nil {
-			return fmt.Errorf("open upload file:%s", err)
-		}
-		if f, ok := file.(multipart.File); ok {
-			dv.Set(valueOf(f))
-		}
 	case *multipart.FileHeader:
 		dv.Set(valueOf(fh))
 
@@ -182,15 +186,6 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 		return
 	}
 
-	// val := valueOf(iface)
-	// typ := val.Type().Elem()
-	// if valueOf(iface).IsNil() {
-	// 	elemVal := reflect.New(typ)
-	// 	val.Set(elemVal)
-	// 	val = elemVal
-	// } else {
-	// 	val = val.Elem()
-	// }
 	val := valueOf(iface)
 	typ := val.Type()
 	val, typ = dereference(val, typ)
@@ -203,10 +198,10 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 		fTyp := typ.Field(i)
 		dv := fVal
 		dt := fTyp.Type
-		dv, dt = dereference(dv, dt)
 
 		//To support the embeded struct
-		if dt.Kind() == reflect.Struct {
+		if IsStructReally(dt) {
+			dv, dt = dereference(dv, dt)
 			//need the pointer type interface
 			bindPathParams(params, dv.Addr().Interface())
 			continue
@@ -218,7 +213,7 @@ func bindPathParams(params Params, iface interface{}) (err error) {
 		if !exist {
 			continue
 		}
-
+		dv, dt = dereference(dv, dt)
 		err = bindValue(pVal, dv, dt, fTyp.Tag)
 		if err != nil {
 			return
@@ -233,16 +228,7 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 	if len(values) == 0 {
 		return nil
 	}
-	// val := valueOf(iface)
-	// typ := val.Type().Elem()
 
-	// if valueOf(iface).IsNil() {
-	// 	elemVal := reflect.New(typ)
-	// 	val.Set(elemVal)
-	// 	val = elemVal
-	// } else {
-	// 	val = val.Elem()
-	// }
 	val := valueOf(iface)
 	typ := val.Type()
 	val, typ = dereference(val, typ)
@@ -254,9 +240,9 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 		fTyp := typ.Field(i)
 		dv := fVal
 		dt := fTyp.Type
-		dv, dt = dereference(dv, dt)
 
-		if dt.Kind() == reflect.Struct {
+		if IsStructReally(dt) {
+			dv, dt = dereference(dv, dt)
 			bindQueryParams(request, dv.Addr().Interface())
 			continue
 		}
@@ -271,8 +257,10 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 		}
 
 		if dt.Kind() == reflect.Slice {
+			dv, dt = dereference(dv, dt)
 			err = bindValues(pVal, dv, dt)
 		} else {
+			dv, dt = dereference(dv, dt)
 			err = bindValue(pVal[0], dv, dt, fTyp.Tag)
 		}
 		if err != nil {
@@ -282,7 +270,7 @@ func bindQueryParams(request *http.Request, iface interface{}) (err error) {
 	return
 }
 
-const DEFAULT_SIZE = 32 * 1024 * 1024
+const DEFAULT_SIZE = 4 * 1024 * 1024
 
 func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	err = req.ParseForm()
@@ -293,20 +281,17 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 	if contentType != "" {
 		ct, _, err := mime.ParseMediaType(contentType)
 		if ct == MIME_MULT_POST && err == nil {
+			st := time.Now()
 			req.ParseMultipartForm(DEFAULT_SIZE)
-
+			logger.Infof("parse multipart form:%v", time.Now().Sub(st))
 		}
 	}
+	noFile := req.MultipartForm == nil || req.MultipartForm.File == nil
+	bindFormParams2(req, noFile, iface)
+	return nil
+}
 
-	// val := valueOf(iface)
-	// typ := val.Type().Elem()
-	// if val.IsNil() {
-	// 	elemVal := reflect.New(typ)
-	// 	val.Set(elemVal)
-	// 	val = elemVal
-	// } else {
-	// 	val = val.Elem()
-	// }
+func bindFormParams2(req *http.Request, noFile bool, iface interface{}) (err error) {
 	val := valueOf(iface)
 	typ := typeOf(iface)
 	val, typ = dereference(val, typ)
@@ -324,6 +309,9 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 
 		//read the file firstly
 		if fileKey != "" {
+			if noFile {
+				continue
+			}
 			if pVal, exist := req.MultipartForm.File[fileKey]; exist && len(pVal) > 0 {
 				err = bindFile(pVal[0], dv, dt)
 				if err != nil {
@@ -333,11 +321,10 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			continue
 		}
 
-		dv, dt = dereference(dv, dt)
-
-		if dt.Kind() == reflect.Struct {
+		if IsStructReally(dt) {
+			dv, dt = dereference(dv, dt)
 			//support the nested struct
-			bindFormParams(req, dv.Addr().Interface())
+			bindFormParams2(req, noFile, dv.Addr().Interface())
 			continue
 		}
 
@@ -350,9 +337,10 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 			continue
 		}
 		if dt.Kind() == reflect.Slice {
+			dv, dt = dereference(dv, dt)
 			err = bindValues(pVal, dv, dt)
 		} else {
-
+			dv, dt = dereference(dv, dt)
 			err = bindValue(pVal[0], dv, dt, fTyp.Tag)
 		}
 		if err != nil {
@@ -360,7 +348,6 @@ func bindFormParams(req *http.Request, iface interface{}) (err error) {
 		}
 
 	}
-
 	return nil
 }
 

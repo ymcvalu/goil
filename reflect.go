@@ -52,9 +52,36 @@ func dereference(dv reflect.Value, dt reflect.Type) (reflect.Value, reflect.Type
 	return dv, dt
 }
 
+func dereferenceNotNew(dv reflect.Value, dt reflect.Type) (reflect.Value, reflect.Type, bool) {
+	kind := dt.Kind()
+	for kind == reflect.Ptr {
+		if dv.IsNil() {
+			return dv, dt, true
+		}
+		dv = dv.Elem()
+		dt = dt.Elem()
+		kind = dt.Kind()
+	}
+	return dv, dt, false
+}
 func deref(typ reflect.Type) reflect.Type {
 	for typ.Kind() == reflect.Ptr {
 		typ = typ.Elem()
 	}
 	return typ
+}
+
+func IsStructReally(typ reflect.Type) bool {
+	for typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+	return typ.Kind() == reflect.Struct
+}
+
+func export(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	letter := name[0]
+	return letter >= 'A' && letter <= 'Z'
 }

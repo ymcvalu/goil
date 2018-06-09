@@ -3,6 +3,7 @@ package goil
 import (
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"sync"
 )
 
@@ -121,4 +122,16 @@ func (*concurrentMap) new() *concurrentMap {
 	return &concurrentMap{
 		values: make(map[interface{}]interface{}),
 	}
+}
+
+type ValidatorError struct {
+	msg string
+}
+
+func (v *ValidatorError) Error() string {
+	return v.msg
+}
+
+func (v *ValidatorError) Init(msg string, iface ...interface{}) {
+	v.msg = fmt.Sprintf(msg, iface...)
 }
