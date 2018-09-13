@@ -7,14 +7,16 @@ import (
 )
 
 func parseTag(tag string) ([]string, [][]string, error) {
+	var (
+		fns      = make([]string, 0, 1)
+		argses   = make([][]string, 0, 1)
+		cur      = 0
+		pre      = 0
+		at       = 0
+		bound    = len(tag)
+		needArgs bool
+	)
 
-	var fns = make([]string, 0, 1)
-	var argses = make([][]string, 0, 1)
-	var cur = 0
-	var pre = 0
-	var at = 0
-	var bound = len(tag)
-	var needArgs bool
 	for cur < bound {
 		needArgs = false
 		if tag[cur] == ' ' {
@@ -43,8 +45,8 @@ func parseTag(tag string) ([]string, [][]string, error) {
 				needArgs = true
 				break parseFn
 
-			// case '!', '@', '#', '$', '%', '^', '&', '*', '"', '\'', '~', '`', '?', '/', '<', '>', '+', '-', '.', ',':
-			// 	return nil, nil, fmt.Errorf("unsupport char '%c' for tag '%s'", tag[cur], tag)
+				// case '!', '@', '#', '$', '%', '^', '&', '*', '"', '\'', '~', '`', '?', '/', '<', '>', '+', '-', '.', ',':
+				// 	return nil, nil, fmt.Errorf("unsupport char '%c' for tag '%s'", tag[cur], tag)
 			default:
 				cur++
 				at = cur
